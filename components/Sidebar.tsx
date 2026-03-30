@@ -1,7 +1,8 @@
 'use client'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useState } from 'react'
+import { createBrowserClient } from '@supabase/ssr'
 import { CentroNotificaciones, useTurnoNotificaciones } from './Notificaciones'
 
 const nav = [
@@ -18,8 +19,20 @@ const NOTIFS_NO_LEIDAS = 3
 
 export default function Sidebar() {
   const path = usePathname()
+  const router = useRouter()
   const [showNotifs, setShowNotifs] = useState(false)
+  const [loggingOut, setLoggingOut] = useState(false)
   useTurnoNotificaciones()
+
+  const handleLogout = async () => {
+    setLoggingOut(true)
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+    await supabase.auth.signOut()
+    router.push('/login')
+  }
 
   return (
     <>
@@ -37,7 +50,6 @@ export default function Sidebar() {
               Dark Kitchen OS · Beta
             </div>
           </div>
-          {/* Campana de notificaciones */}
           <div onClick={() => setShowNotifs(true)} style={{ position:'relative', cursor:'pointer', padding:4 }}>
             <span style={{ fontSize:18 }}>🔔</span>
             {NOTIFS_NO_LEIDAS > 0 && (
@@ -82,7 +94,6 @@ export default function Sidebar() {
             )
           })}
 
-          {/* Actividad reciente */}
           <div onClick={() => setShowNotifs(true)} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 10px', borderRadius:8, marginBottom:2, color:'var(--text2)', cursor:'pointer', transition:'all 0.15s', borderLeft:'2px solid transparent', marginTop:8 }}>
             <span style={{ fontSize:15, width:18, textAlign:'center' }}>🔔</span>
             <span style={{ fontSize:13, flex:1 }}>Actividad</span>
@@ -94,18 +105,32 @@ export default function Sidebar() {
           </div>
         </nav>
 
+        {/* Footer: usuario + botón logout */}
         <div style={{ padding:'12px 16px', borderTop:'1px solid var(--border)', display:'flex', alignItems:'center', gap:10 }}>
           <div style={{ width:30, height:30, background:'var(--accent-dim)', border:'1px solid rgba(200,241,53,0.2)', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, color:'var(--accent)', fontWeight:600 }}>
-            JM
+            SG
           </div>
-          <div>
-            <div style={{ fontSize:12, color:'var(--text)', fontWeight:500 }}>José M.</div>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:12, color:'var(--text)', fontWeight:500 }}>Salvador G.</div>
             <div style={{ fontSize:10, color:'var(--text3)' }}>Supervisor turno</div>
           </div>
+          <button
+            onClick={handleLogout}
+            disabled={loggingOut}
+            title="Cerrar sesión"
+            style={{
+              background:'transparent', border:'none', cursor: loggingOut ? 'not-allowed' : 'pointer',
+              padding:4, borderRadius:6, fontSize:16, opacity: loggingOut ? 0.4 : 0.6,
+              transition:'opacity 0.15s', lineHeight:1
+            }}
+            onMouseEnter={e => { if (!loggingOut) (e.target as HTMLElement).style.opacity = '1' }}
+            onMouseLeave={e => { if (!loggingOut) (e.target as HTMLElement).style.opacity = '0.6' }}
+          >
+            🚪
+          </button>
         </div>
       </aside>
 
       {showNotifs && <CentroNotificaciones onClose={() => setShowNotifs(false)} />}
     </>
-  )
-}
+  )}
