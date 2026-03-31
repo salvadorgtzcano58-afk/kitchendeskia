@@ -80,12 +80,38 @@ export default function CorteTurnoPage() {
       .then(({ data }) => { if (data) setProductos(data) })
   }, [])
 
-  const abrirTurno = () => {
+  const abrirTurno = async () => {
     const ahora = new Date()
     setHoraInicio(`${ahora.getHours()}:${String(ahora.getMinutes()).padStart(2,'0')}`)
     setTurnoActivo(true)
-    setPedidos([])
     setGastos([])
+
+    const hoy = new Date()
+    hoy.setHours(0, 0, 0, 0)
+    const manana = new Date(hoy)
+    manana.setDate(manana.getDate() + 1)
+
+    const { data } = await supabase
+      .from('pedidos')
+      .select('id, canal, total, metodo_pago, created_at, pedido_items(producto_nombre, cantidad)')
+      .gte('created_at', hoy.toISOString())
+      .lt('created_at', manana.toISOString())
+      .order('created_at', { ascending: true })
+
+    if (data) {
+      setPedidos(data.map(p => ({
+        id: p.id,
+        canal: p.canal as Canal,
+        items: (p.pedido_items as {producto_nombre: string|null; cantidad: number}[])
+          ?.filter(i => i.producto_nombre)
+          .map(i => `${i.producto_nombre} x${i.cantidad}`)
+          .join(', ') || '—',
+        total: p.total,
+        metodo_pago: (p.metodo_pago || 'efectivo') as MetodoPago,
+        hora: new Date(p.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
+        estado: 'entregado',
+      })))
+    }
   }
 
   const agregarItem = (producto: Producto) => {
