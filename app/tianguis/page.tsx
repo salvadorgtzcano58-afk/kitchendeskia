@@ -1,6 +1,11 @@
 'use client'
 import { useState } from 'react'
-import { createClient } from '@/lib/supabase-browser'
+import { createBrowserClient } from '@supabase/ssr'
+
+const supabase = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
 
 type Venta = {
   id: number
@@ -90,14 +95,15 @@ export default function TianguisPage() {
     setEfectivoRecibido('')
 
     // Guardar en Supabase
-    const supabase = createClient()
     const payload = { canal: 'tianguis' as const, total: totalSnapshot, metodo_pago: 'efectivo' as const }
+    console.log('[tianguis] payload:', JSON.stringify(payload))
     const { data: pedido, error: pedidoError } = await supabase
       .from('pedidos')
       .insert(payload)
       .select()
       .single()
 
+    console.log('[tianguis] pedido result:', JSON.stringify(pedido), 'error:', JSON.stringify(pedidoError))
     if (pedidoError || !pedido) {
       console.error('[tianguis] Error al insertar pedido:', pedidoError)
       return
