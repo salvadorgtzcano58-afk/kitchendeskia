@@ -32,6 +32,13 @@ export async function POST(req: NextRequest) {
     const from = message.from
     const conversationId = message.context?.id || message.id
 
+    // ── Guardar mensaje entrante en Supabase ──────────────────────
+    await supabase.from('mensajes').insert({
+      conversacion_id: conversationId,
+      rol: 'cliente',
+      contenido: message.text.body
+    })
+
     // ── TRIGGER: confirmo pago recibido ──────────────────────────
     if (userMessage.includes('confirmo pago recibido')) {
       return await procesarPedidoConfirmado(from, conversationId)
