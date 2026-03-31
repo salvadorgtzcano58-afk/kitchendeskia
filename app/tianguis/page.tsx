@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { createClient } from '@/lib/supabase-browser'
 
 type Venta = {
   id: number
@@ -70,7 +71,7 @@ export default function TianguisPage() {
     })
   }
 
-  const cobrar = () => {
+  const cobrar = async () => {
     const hora = new Date().toLocaleTimeString('es-MX', { hour:'2-digit', minute:'2-digit' })
     const nuevasVentas = carrito.map((item, i) => ({
       id: Date.now() + i,
@@ -83,6 +84,29 @@ export default function TianguisPage() {
     setCarrito([])
     setShowCobrar(false)
     setEfectivoRecibido('')
+
+    // Guardar en Supabase
+    const supabase = createClient()
+    const { data: pedido } = await supabase
+      .from('pedidos')
+      .insert({
+        canal: 'tianguis',
+        total: totalCarrito,
+        metodo_pago: 'efectivo',
+      })
+      .select()
+      .single()
+
+    if (pedido) {
+      await supabase.from('pedido_items').insert(
+        carrito.map(item => ({
+          pedido_id: pedido.id,
+          producto_nombre: item.sabor,
+          cantidad: item.cantidad,
+          precio_unitario: item.precio,
+        }))
+      )
+    }
   }
 
   const cambio = efectivoRecibido ? parseFloat(efectivoRecibido) - totalCarrito : 0
@@ -160,7 +184,7 @@ export default function TianguisPage() {
           </div>
 
           {/* Panes individuales */}
-          <div style={{ fontSize:10, color:'#5a5c4e', textTransform:'uppercase', letterSpacing:1, marginBottom:8 }}>Panes individuales · $32 c/u</div>
+          <div style={{ fontSize:10, color:'#5a5c4e', textTransform:'uppercase', letterSpacing:1, marginBottom:8 }}>Panes individuales · $30 c/u</div>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
             {PANES.map(p => {
               const cnt = cantidadEnCarrito(p.sabor)
