@@ -73,7 +73,11 @@ export default function TianguisPage() {
 
   const cobrar = async () => {
     const hora = new Date().toLocaleTimeString('es-MX', { hour:'2-digit', minute:'2-digit' })
-    const nuevasVentas = carrito.map((item, i) => ({
+    // Capturar carrito y total antes de limpiar el estado
+    const carritoSnapshot = [...carrito]
+    const totalSnapshot = totalCarrito
+
+    const nuevasVentas = carritoSnapshot.map((item, i) => ({
       id: Date.now() + i,
       sabor: item.sabor,
       cantidad: item.cantidad,
@@ -87,25 +91,27 @@ export default function TianguisPage() {
 
     // Guardar en Supabase
     const supabase = createClient()
-    const { data: pedido } = await supabase
+    const payload = { canal: 'tianguis' as const, total: totalSnapshot, metodo_pago: 'efectivo' as const }
+    const { data: pedido, error: pedidoError } = await supabase
       .from('pedidos')
-      .insert({
-        canal: 'tianguis',
-        total: totalCarrito,
-        metodo_pago: 'efectivo',
-      })
+      .insert(payload)
       .select()
       .single()
 
-    if (pedido) {
-      await supabase.from('pedido_items').insert(
-        carrito.map(item => ({
-          pedido_id: pedido.id,
-          producto_nombre: item.sabor,
-          cantidad: item.cantidad,
-          precio_unitario: item.precio,
-        }))
-      )
+    if (pedidoError || !pedido) {
+      console.error('[tianguis] Error al insertar pedido:', pedidoError)
+      return
+    }
+
+    const items = carritoSnapshot.map(item => ({
+      pedido_id: pedido.id,
+      producto_nombre: item.sabor,
+      cantidad: item.cantidad,
+      precio_unitario: item.precio,
+    }))
+    const { error: itemsError } = await supabase.from('pedido_items').insert(items)
+    if (itemsError) {
+      console.error('[tianguis] Error al insertar pedido_items:', itemsError)
     }
   }
 

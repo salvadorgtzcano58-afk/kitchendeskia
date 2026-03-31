@@ -86,16 +86,10 @@ export default function CorteTurnoPage() {
     setTurnoActivo(true)
     setGastos([])
 
-    const hoy = new Date()
-    hoy.setHours(0, 0, 0, 0)
-    const manana = new Date(hoy)
-    manana.setDate(manana.getDate() + 1)
-
     const { data } = await supabase
       .from('pedidos')
       .select('id, canal, total, metodo_pago, created_at, pedido_items(producto_nombre, cantidad)')
-      .gte('created_at', hoy.toISOString())
-      .lt('created_at', manana.toISOString())
+      .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
       .order('created_at', { ascending: true })
 
     if (data) {
