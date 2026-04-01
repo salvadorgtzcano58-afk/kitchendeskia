@@ -90,9 +90,10 @@ export default function CorteTurnoPage() {
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'pedidos', filter: 'canal=eq.tianguis' },
-        (payload) => {
+        async (payload) => {
           if (!turnoActivoRef.current) return
           const p = payload.new as { id: string; canal: string; total: number; metodo_pago: string; created_at: string }
+          // Insertar primero con items '—', luego actualizar con los items reales
           setPedidos(prev => [...prev, {
             id: p.id,
             canal: p.canal as Canal,
@@ -102,6 +103,15 @@ export default function CorteTurnoPage() {
             hora: new Date(p.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
             estado: 'entregado',
           }])
+          const { data: itemsData } = await supabase
+            .from('pedido_items')
+            .select('producto_nombre, cantidad')
+            .eq('pedido_id', p.id)
+          const itemsTexto = (itemsData as {producto_nombre: string|null; cantidad: number}[] | null)
+            ?.filter(i => i.producto_nombre)
+            .map(i => `${i.producto_nombre} x${i.cantidad}`)
+            .join(', ') || '—'
+          setPedidos(prev => prev.map(ped => ped.id === p.id ? { ...ped, items: itemsTexto } : ped))
         }
       )
       .subscribe()
@@ -117,7 +127,7 @@ export default function CorteTurnoPage() {
 
     const { data } = await supabase
       .from('pedidos')
-      .select('id, canal, total, metodo_pago, created_at')
+      .select('id, canal, total, metodo_pago, created_at, pedido_items(producto_nombre, cantidad)')
       .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
       .order('created_at', { ascending: true })
 
@@ -125,7 +135,10 @@ export default function CorteTurnoPage() {
       setPedidos(data.map(p => ({
         id: p.id,
         canal: p.canal as Canal,
-        items: '—',
+        items: (p.pedido_items as {producto_nombre: string|null; cantidad: number}[])
+          ?.filter(i => i.producto_nombre)
+          .map(i => `${i.producto_nombre} x${i.cantidad}`)
+          .join(', ') || '—',
         total: p.total,
         metodo_pago: (p.metodo_pago || 'efectivo') as MetodoPago,
         hora: new Date(p.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
