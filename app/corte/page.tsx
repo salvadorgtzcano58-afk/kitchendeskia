@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Sidebar from '@/components/Sidebar'
 import { createBrowserClient } from '@supabase/ssr'
 
@@ -78,6 +78,35 @@ export default function CorteTurnoPage() {
       .eq('activo', true)
       .order('nombre')
       .then(({ data }) => { if (data) setProductos(data) })
+  }, [])
+
+  // Suscripción en tiempo real: inserts en pedidos canal tianguis
+  const turnoActivoRef = useRef(turnoActivo)
+  useEffect(() => { turnoActivoRef.current = turnoActivo }, [turnoActivo])
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('pedidos-tianguis')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'pedidos', filter: 'canal=eq.tianguis' },
+        (payload) => {
+          if (!turnoActivoRef.current) return
+          const p = payload.new as { id: string; canal: string; total: number; metodo_pago: string; created_at: string }
+          setPedidos(prev => [...prev, {
+            id: p.id,
+            canal: p.canal as Canal,
+            items: '—',
+            total: p.total,
+            metodo_pago: (p.metodo_pago || 'efectivo') as MetodoPago,
+            hora: new Date(p.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
+            estado: 'entregado',
+          }])
+        }
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
   }, [])
 
   const abrirTurno = async () => {
