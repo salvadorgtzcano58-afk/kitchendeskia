@@ -34,13 +34,15 @@ export default function DashboardPage() {
   const [turnoHoraInicio, setTurnoHoraInicio] = useState<string | null>(null)
   const [conversacionesAbiertas, setConversacionesAbiertas] = useState(0)
   const [ultimasConversaciones, setUltimasConversaciones] = useState<Conversacion[]>([])
+  const [horaActual, setHoraActual] = useState('')
+  const [fechaActual, setFechaActual] = useState('')
 
-  const horaActual = new Date().toLocaleTimeString('es-MX', { hour:'2-digit', minute:'2-digit' })
-  const fechaActual = new Date().toLocaleDateString('es-MX', { weekday:'long', day:'numeric', month:'long' })
-  const margenHoy = Math.round(ventaHoy * 0.35) // estimado 35% margen
+  const margenHoy = Math.round(ventaHoy * 0.35)
 
-  // Leer turno desde localStorage
+  // Inicializar fecha/hora y leer turno en cliente (evita hydration mismatch)
   useEffect(() => {
+    setHoraActual(new Date().toLocaleTimeString('es-MX', { hour:'2-digit', minute:'2-digit' }))
+    setFechaActual(new Date().toLocaleDateString('es-MX', { weekday:'long', day:'numeric', month:'long' }))
     const guardado = localStorage.getItem('turno_activo')
     if (guardado) {
       const { horaInicio } = JSON.parse(guardado)
