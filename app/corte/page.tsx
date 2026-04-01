@@ -80,6 +80,39 @@ export default function CorteTurnoPage() {
       .then(({ data }) => { if (data) setProductos(data) })
   }, [])
 
+  const cargarPedidosDelDia = async () => {
+    const { data } = await supabase
+      .from('pedidos')
+      .select('id, canal, total, metodo_pago, created_at, pedido_items(producto_nombre, cantidad)')
+      .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+      .order('created_at', { ascending: true })
+    if (data) {
+      setPedidos(data.map(p => ({
+        id: p.id,
+        canal: p.canal as Canal,
+        items: (p.pedido_items as {producto_nombre: string|null; cantidad: number}[])
+          ?.filter(i => i.producto_nombre)
+          .map(i => `${i.producto_nombre} x${i.cantidad}`)
+          .join(', ') || '—',
+        total: p.total,
+        metodo_pago: (p.metodo_pago || 'efectivo') as MetodoPago,
+        hora: new Date(p.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
+        estado: 'entregado',
+      })))
+    }
+  }
+
+  // Restaurar turno desde localStorage al montar
+  useEffect(() => {
+    const guardado = localStorage.getItem('turno_activo')
+    if (guardado) {
+      const { horaInicio: hora } = JSON.parse(guardado)
+      setHoraInicio(hora)
+      setTurnoActivo(true)
+      cargarPedidosDelDia()
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Suscripción en tiempo real: inserts en pedidos canal tianguis
   const turnoActivoRef = useRef(turnoActivo)
   useEffect(() => { turnoActivoRef.current = turnoActivo }, [turnoActivo])
@@ -121,30 +154,12 @@ export default function CorteTurnoPage() {
 
   const abrirTurno = async () => {
     const ahora = new Date()
-    setHoraInicio(`${ahora.getHours()}:${String(ahora.getMinutes()).padStart(2,'0')}`)
+    const hora = `${ahora.getHours()}:${String(ahora.getMinutes()).padStart(2,'0')}`
+    setHoraInicio(hora)
     setTurnoActivo(true)
     setGastos([])
-
-    const { data } = await supabase
-      .from('pedidos')
-      .select('id, canal, total, metodo_pago, created_at, pedido_items(producto_nombre, cantidad)')
-      .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
-      .order('created_at', { ascending: true })
-
-    if (data) {
-      setPedidos(data.map(p => ({
-        id: p.id,
-        canal: p.canal as Canal,
-        items: (p.pedido_items as {producto_nombre: string|null; cantidad: number}[])
-          ?.filter(i => i.producto_nombre)
-          .map(i => `${i.producto_nombre} x${i.cantidad}`)
-          .join(', ') || '—',
-        total: p.total,
-        metodo_pago: (p.metodo_pago || 'efectivo') as MetodoPago,
-        hora: new Date(p.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
-        estado: 'entregado',
-      })))
-    }
+    localStorage.setItem('turno_activo', JSON.stringify({ horaInicio: hora }))
+    await cargarPedidosDelDia()
   }
 
   const agregarItem = (producto: Producto) => {
@@ -552,7 +567,7 @@ export default function CorteTurnoPage() {
                   style={{ flex:1, padding:'10px', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, cursor:'pointer', color:'var(--text2)', fontSize:12 }}>
                   Cancelar
                 </button>
-                <button onClick={() => { setTurnoActivo(false); setShowCierre(false) }}
+                <button onClick={() => { setTurnoActivo(false); setShowCierre(false); localStorage.removeItem('turno_activo') }}
                   style={{ flex:1, padding:'10px', background:'rgba(255,92,77,0.2)', border:'1px solid rgba(255,92,77,0.4)', borderRadius:8, cursor:'pointer', color:'#ff5c4d', fontSize:12, fontWeight:700 }}>
                   Cerrar turno
                 </button>
