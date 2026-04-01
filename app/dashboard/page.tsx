@@ -1,7 +1,13 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Sidebar from '@/components/Sidebar'
 import Link from 'next/link'
+import { createBrowserClient } from '@supabase/ssr'
+
+const supabase = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
 
 const CANAL_INFO: Record<string, { label: string; color: string; bg: string }> = {
   whatsapp:  { label:'WhatsApp',  color:'#25D366', bg:'rgba(37,211,102,0.12)' },
@@ -16,21 +22,7 @@ const ULTIMOS_MENSAJES = [
   { nombre:'Ana Núñez',       canal:'instagram',texto:'¿Hacen envíos a Juriquilla?',            hace:'15m', tipo:'duda' },
 ]
 
-const INVENTARIO_CRITICO = [
-  { nombre:'Leche',         stock:'1.1 lt',  dias:1, color:'#ff5c4d' },
-  { nombre:'Habanero',      stock:'3 pzas',  dias:1, color:'#ff5c4d' },
-  { nombre:'Aceite',        stock:'0.5 lt',  dias:1, color:'#ff5c4d' },
-  { nombre:'Salsa de soya', stock:'0.5 lt',  dias:1, color:'#ff5c4d' },
-  { nombre:'Pollo',         stock:'5 bolsas',dias:2, color:'#ff9a3c' },
-  { nombre:'Cebollín',      stock:'5 pzas',  dias:2, color:'#ff9a3c' },
-]
-
-const PANES_BAJOS = [
-  { sabor:'Pay de limón',  piezas:2, color:'#ff5c4d' },
-  { sabor:'Maracuyá',      piezas:3, color:'#ff5c4d' },
-  { sabor:'Bubulubu',      piezas:3, color:'#ff5c4d' },
-  { sabor:'Chocomenta',    piezas:3, color:'#ff9a3c' },
-]
+type ProductoCritico = { id: string; nombre: string; stock_actual: number; unidad: string | null }
 
 const ULTIMOS_PEDIDOS = [
   { canal:'whatsapp',  items:'Combo 2 pa 2',       total:375, hora:'10:32', estado:'entregado' },
@@ -50,8 +42,19 @@ const ACCESOS = [
 
 export default function DashboardPage() {
   const [turnoActivo] = useState(true)
+  const [stockCritico, setStockCritico] = useState<ProductoCritico[]>([])
   const horaActual = new Date().toLocaleTimeString('es-MX', { hour:'2-digit', minute:'2-digit' })
   const fechaActual = new Date().toLocaleDateString('es-MX', { weekday:'long', day:'numeric', month:'long' })
+
+  useEffect(() => {
+    supabase
+      .from('productos')
+      .select('id, nombre, stock_actual, unidad')
+      .lte('stock_actual', 5)
+      .eq('activo', true)
+      .order('stock_actual', { ascending: true })
+      .then(({ data }) => { if (data) setStockCritico(data) })
+  }, [])
 
   const ventaHoy = 1730
   const pedidosHoy = 6
@@ -146,31 +149,29 @@ export default function DashboardPage() {
             {/* Alertas de inventario */}
             <div style={{ background:'var(--surface)', border:'1px solid rgba(255,92,77,0.2)', borderRadius:10, padding:16 }}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
-                <div style={{ fontSize:10, color:'var(--text3)', textTransform:'uppercase', letterSpacing:1 }}>⚠ Inventario crítico</div>
+                <div style={{ fontSize:10, color:'var(--text3)', textTransform:'uppercase', letterSpacing:1 }}>
+                  ⚠ Stock crítico {stockCritico.length > 0 && <span style={{ color:'#ff5c4d' }}>({stockCritico.length})</span>}
+                </div>
                 <Link href="/inventario" style={{ fontSize:10, color:'var(--accent)', textDecoration:'none' }}>Ver todo →</Link>
               </div>
-              <div style={{ display:'flex', flexDirection:'column', gap:6, marginBottom:12 }}>
-                {INVENTARIO_CRITICO.map((item, i) => (
-                  <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'5px 8px', background:'var(--surface2)', borderRadius:6 }}>
-                    <span style={{ fontSize:12, color:'var(--text)' }}>{item.nombre}</span>
-                    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                      <span style={{ fontSize:10, color:'var(--text3)' }}>{item.stock}</span>
-                      <span style={{ fontSize:10, fontWeight:600, color:item.color }}>{item.dias}d</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div style={{ borderTop:'1px solid var(--border)', paddingTop:10 }}>
-                <div style={{ fontSize:10, color:'var(--text3)', marginBottom:6 }}>Panes bajos</div>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:4 }}>
-                  {PANES_BAJOS.map((p, i) => (
-                    <div key={i} style={{ display:'flex', justifyContent:'space-between', padding:'4px 8px', background:'var(--surface2)', borderRadius:6 }}>
-                      <span style={{ fontSize:10, color:'var(--text2)' }}>{p.sabor}</span>
-                      <span style={{ fontSize:10, fontWeight:600, color:p.color }}>{p.piezas}</span>
-                    </div>
-                  ))}
+              {stockCritico.length === 0 ? (
+                <div style={{ fontSize:12, color:'var(--text3)', textAlign:'center', padding:'16px 0' }}>Sin productos críticos</div>
+              ) : (
+                <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                  {stockCritico.map(item => {
+                    const color = item.stock_actual <= 2 ? '#ff5c4d' : '#ff9a3c'
+                    return (
+                      <div key={item.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'5px 8px', background:'var(--surface2)', borderRadius:6 }}>
+                        <span style={{ fontSize:12, color:'var(--text)' }}>{item.nombre}</span>
+                        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                          <span style={{ fontSize:10, color:'var(--text3)' }}>{item.stock_actual} {item.unidad || 'pzas'}</span>
+                          <span style={{ fontSize:10, fontWeight:600, color }}>{item.stock_actual}d est.</span>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
-              </div>
+              )}
             </div>
           </div>
 
