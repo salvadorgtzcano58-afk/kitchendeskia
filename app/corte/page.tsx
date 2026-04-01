@@ -31,8 +31,12 @@ const PAGO_LABEL: Record<MetodoPago, string> = {
   tarjeta:'Tarjeta', efectivo:'Efectivo', transferencia:'Transferencia', terminal:'Terminal'
 }
 
+const PRECIO_PAN_FIJO: Record<Canal, number> = {
+  tianguis: 30, whatsapp: 32, uber_eats: 70, rappi: 70, didi_food: 70,
+}
+
 type Producto = { id: string; nombre: string; categoria: string; stock_actual: number }
-type ItemPedido = { producto: Producto; cantidad: number }
+type ItemPedido = { producto: Producto; cantidad: number; sabores?: Producto[] }
 type Pedido = {
   id: string
   canal: Canal
@@ -52,11 +56,13 @@ export default function CorteTurnoPage() {
   const [showNuevoPedido, setShowNuevoPedido] = useState(false)
   const [showCierre, setShowCierre] = useState(false)
   const [productos, setProductos] = useState<Producto[]>([])
+  const [preciosCanal, setPreciosCanal] = useState<{producto_id: string; canal: string; precio: number}[]>([])
   const [itemsSeleccionados, setItemsSeleccionados] = useState<ItemPedido[]>([])
   const [canalSeleccionado, setCanalSeleccionado] = useState<Canal>('whatsapp')
   const [metodoPago, setMetodoPago] = useState<MetodoPago>('efectivo')
-  const [totalManual, setTotalManual] = useState('')
   const [guardando, setGuardando] = useState(false)
+  const [paqueteConfigurandoId, setPaqueteConfigurandoId] = useState<string | null>(null)
+  const [tempSabores, setTempSabores] = useState<Producto[]>([])
 
   const ventas = pedidos
   const totalVentas = ventas.reduce((a, p) => a + p.total, 0)
@@ -78,6 +84,14 @@ export default function CorteTurnoPage() {
       .eq('activo', true)
       .order('nombre')
       .then(({ data }) => { if (data) setProductos(data) })
+  }, [])
+
+  // Cargar precios por canal
+  useEffect(() => {
+    supabase
+      .from('precios_canal')
+      .select('producto_id, canal, precio')
+      .then(({ data }) => { if (data) setPreciosCanal(data) })
   }, [])
 
   const cargarPedidosDelDia = async () => {
@@ -167,12 +181,52 @@ export default function CorteTurnoPage() {
     await cargarPedidosDelDia()
   }
 
+  const esPanIndividual = (prod: Producto) =>
+    prod.categoria.toLowerCase().includes('pan') &&
+    !prod.nombre.toLowerCase().includes('amigos') &&
+    !prod.nombre.toLowerCase().includes('familiar')
+
+  const esRamen = (prod: Producto) => prod.categoria.toLowerCase().includes('ramen')
+
+  const getPiezasPaquete = (prod: Producto): number | null => {
+    if (prod.nombre.toLowerCase().includes('amigos')) return 4
+    if (prod.nombre.toLowerCase().includes('familiar')) return 6
+    return null
+  }
+
+  const getPrecio = (prod: Producto, canal: Canal): number => {
+    if (esPanIndividual(prod)) return PRECIO_PAN_FIJO[canal]
+    const pc = preciosCanal.find(p => p.producto_id === prod.id && p.canal === canal)
+    return pc?.precio ?? 0
+  }
+
   const agregarItem = (producto: Producto) => {
+    const piezas = getPiezasPaquete(producto)
+    if (piezas !== null) {
+      setPaqueteConfigurandoId(producto.id)
+      setTempSabores([])
+      return
+    }
     setItemsSeleccionados(prev => {
       const existe = prev.find(i => i.producto.id === producto.id)
       if (existe) return prev.map(i => i.producto.id === producto.id ? { ...i, cantidad: i.cantidad + 1 } : i)
       return [...prev, { producto, cantidad: 1 }]
     })
+  }
+
+  const seleccionarSabor = (sabor: Producto) => {
+    const paqueteProducto = productos.find(p => p.id === paqueteConfigurandoId)
+    if (!paqueteProducto) return
+    const piezas = getPiezasPaquete(paqueteProducto)!
+    const nuevos = [...tempSabores, sabor]
+    if (nuevos.length >= piezas) {
+      const saboresFinal = nuevos.slice(0, piezas)
+      setItemsSeleccionados(prev => [...prev, { producto: paqueteProducto, cantidad: 1, sabores: saboresFinal }])
+      setPaqueteConfigurandoId(null)
+      setTempSabores([])
+    } else {
+      setTempSabores(nuevos)
+    }
   }
 
   const cambiarCantidad = (id: string, delta: number) => {
@@ -186,15 +240,18 @@ export default function CorteTurnoPage() {
     setItemsSeleccionados(prev => prev.filter(i => i.producto.id !== id))
   }
 
-  const totalCalculado = totalManual
-    ? parseFloat(totalManual)
-    : itemsSeleccionados.reduce((a, i) => a + i.cantidad * 30, 0) // precio base $30
+  const totalCalculado = itemsSeleccionados.reduce((a, i) => a + getPrecio(i.producto, canalSeleccionado) * i.cantidad, 0)
 
   const agregarPedido = async () => {
     if (itemsSeleccionados.length === 0 || !totalCalculado) return
     setGuardando(true)
 
-    const itemsTexto = itemsSeleccionados.map(i => `${i.producto.nombre} x${i.cantidad}`).join(', ')
+    const itemsTexto = itemsSeleccionados.map(i => {
+      if (i.sabores && i.sabores.length > 0) {
+        return `${i.producto.nombre} (${i.sabores.map(s => s.nombre).join(', ')}) x${i.cantidad}`
+      }
+      return `${i.producto.nombre} x${i.cantidad}`
+    }).join(', ')
 
     // 1. Insertar pedido en Supabase
     const { data: pedidoDB, error } = await supabase
@@ -220,12 +277,12 @@ export default function CorteTurnoPage() {
       producto_id: i.producto.id,
       producto_nombre: i.producto.nombre,
       cantidad: i.cantidad,
-      precio_unitario: totalCalculado / itemsSeleccionados.reduce((a, x) => a + x.cantidad, 0),
+      precio_unitario: getPrecio(i.producto, canalSeleccionado),
     }))
 
     await supabase.from('pedido_items').insert(items)
 
-  // 3. Actualizar estado local
+    // 3. Actualizar estado local
     const nuevoPedido: Pedido = {
       id: pedidoDB.id,
       canal: canalSeleccionado,
@@ -247,11 +304,12 @@ export default function CorteTurnoPage() {
 
     // 5. Limpiar modal
     setItemsSeleccionados([])
-    setTotalManual('')
     setCanalSeleccionado('whatsapp')
     setMetodoPago('efectivo')
     setShowNuevoPedido(false)
     setGuardando(false)
+    setPaqueteConfigurandoId(null)
+    setTempSabores([])
   }
 
   const agregarGasto = () => {
@@ -267,8 +325,17 @@ export default function CorteTurnoPage() {
     setMetodoPago(PAGOS_POR_CANAL[canal][0])
   }
 
-  // Agrupar productos por categoría
-  const categorias = [...new Set(productos.map(p => p.categoria))]
+  // Productos visibles para el canal seleccionado
+  const productosVisibles = productos.filter(prod => {
+    if (esRamen(prod) && canalSeleccionado === 'tianguis') return false
+    if (esPanIndividual(prod)) return true
+    return preciosCanal.some(p => p.producto_id === prod.id && p.canal === canalSeleccionado)
+  })
+
+  const categoriasVisibles = [...new Set(productosVisibles.map(p => p.categoria))]
+
+  // Panes individuales para sub-selector de paquetes
+  const panesIndividuales = productos.filter(esPanIndividual)
 
   return (
     <div style={{ display:'flex', height:'100vh', overflow:'hidden' }}>
@@ -482,38 +549,83 @@ export default function CorteTurnoPage() {
                 </div>
               </div>
 
-              {/* Selector de productos */}
-              <div style={{ marginBottom:14 }}>
-                <div style={{ fontSize:10, color:'var(--text3)', marginBottom:8, textTransform:'uppercase', letterSpacing:1 }}>Productos</div>
-                {categorias.map(cat => (
-                  <div key={cat} style={{ marginBottom:10 }}>
-                    <div style={{ fontSize:10, color:'var(--text3)', marginBottom:4 }}>{cat}</div>
+              {/* Sub-selector de sabores para paquete */}
+              {paqueteConfigurandoId && (() => {
+                const paqueteProd = productos.find(p => p.id === paqueteConfigurandoId)!
+                const piezas = getPiezasPaquete(paqueteProd)!
+                return (
+                  <div style={{ marginBottom:14, background:'rgba(200,241,53,0.06)', border:'1px solid rgba(200,241,53,0.2)', borderRadius:10, padding:12 }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                      <div style={{ fontSize:11, color:'var(--accent)', fontWeight:600 }}>
+                        {paqueteProd.nombre} — elige {piezas} sabores ({tempSabores.length}/{piezas})
+                      </div>
+                      <button onClick={() => { setPaqueteConfigurandoId(null); setTempSabores([]) }}
+                        style={{ background:'none', border:'none', color:'var(--text3)', cursor:'pointer', fontSize:13 }}>✕</button>
+                    </div>
                     <div style={{ display:'flex', flexWrap:'wrap', gap:4 }}>
-                      {productos.filter(p => p.categoria === cat).map(prod => {
-                        const seleccionado = itemsSeleccionados.find(i => i.producto.id === prod.id)
+                      {panesIndividuales.map(pan => {
+                        const cuenta = tempSabores.filter(s => s.id === pan.id).length
                         return (
-                          <button key={prod.id} onClick={() => agregarItem(prod)}
-                            style={{ padding:'4px 10px', borderRadius:6, fontSize:11, cursor:'pointer', fontWeight:500,
-                              background: seleccionado ? 'rgba(200,241,53,0.12)' : 'var(--surface2)',
-                              color: seleccionado ? 'var(--accent)' : prod.stock_actual <= 3 ? '#ff5c4d' : 'var(--text2)',
-                              border: seleccionado ? '1px solid rgba(200,241,53,0.4)' : '1px solid var(--border)' }}>
-                            {prod.nombre}
-                            {seleccionado && <span style={{ fontWeight:700 }}> ×{seleccionado.cantidad}</span>}
-                            {prod.stock_actual <= 3 && !seleccionado && <span style={{ fontSize:9, marginLeft:4 }}>({prod.stock_actual})</span>}
+                          <button key={pan.id} onClick={() => seleccionarSabor(pan)}
+                            disabled={tempSabores.length >= piezas}
+                            style={{ padding:'4px 10px', borderRadius:6, fontSize:11, cursor: tempSabores.length >= piezas ? 'not-allowed' : 'pointer', fontWeight:500,
+                              background: cuenta > 0 ? 'rgba(200,241,53,0.15)' : 'var(--surface2)',
+                              color: cuenta > 0 ? 'var(--accent)' : pan.stock_actual <= 3 ? '#ff5c4d' : 'var(--text2)',
+                              border: cuenta > 0 ? '1px solid rgba(200,241,53,0.4)' : '1px solid var(--border)',
+                              opacity: tempSabores.length >= piezas && cuenta === 0 ? 0.4 : 1 }}>
+                            {pan.nombre}{cuenta > 0 && <span style={{ fontWeight:700 }}> ×{cuenta}</span>}
                           </button>
                         )
                       })}
                     </div>
                   </div>
-                ))}
-              </div>
+                )
+              })()}
+
+              {/* Selector de productos */}
+              {!paqueteConfigurandoId && (
+                <div style={{ marginBottom:14 }}>
+                  <div style={{ fontSize:10, color:'var(--text3)', marginBottom:8, textTransform:'uppercase', letterSpacing:1 }}>Productos</div>
+                  {categoriasVisibles.map(cat => (
+                    <div key={cat} style={{ marginBottom:10 }}>
+                      <div style={{ fontSize:10, color:'var(--text3)', marginBottom:4 }}>{cat}</div>
+                      <div style={{ display:'flex', flexWrap:'wrap', gap:4 }}>
+                        {productosVisibles.filter(p => p.categoria === cat).map(prod => {
+                          const seleccionado = itemsSeleccionados.find(i => i.producto.id === prod.id)
+                          const precio = getPrecio(prod, canalSeleccionado)
+                          return (
+                            <button key={prod.id} onClick={() => agregarItem(prod)}
+                              style={{ padding:'4px 10px', borderRadius:6, fontSize:11, cursor:'pointer', fontWeight:500,
+                                background: seleccionado ? 'rgba(200,241,53,0.12)' : 'var(--surface2)',
+                                color: seleccionado ? 'var(--accent)' : prod.stock_actual <= 3 ? '#ff5c4d' : 'var(--text2)',
+                                border: seleccionado ? '1px solid rgba(200,241,53,0.4)' : '1px solid var(--border)' }}>
+                              {prod.nombre}
+                              {precio > 0 && <span style={{ fontSize:9, color:'var(--text3)', marginLeft:4 }}>${precio}</span>}
+                              {seleccionado && <span style={{ fontWeight:700 }}> ×{seleccionado.cantidad}</span>}
+                              {prod.stock_actual <= 3 && !seleccionado && <span style={{ fontSize:9, marginLeft:4 }}>({prod.stock_actual})</span>}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* Items seleccionados */}
               {itemsSeleccionados.length > 0 && (
                 <div style={{ marginBottom:14, background:'var(--surface2)', borderRadius:8, padding:10 }}>
                   {itemsSeleccionados.map(item => (
                     <div key={item.producto.id} style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
-                      <span style={{ flex:1, fontSize:12, color:'var(--text)' }}>{item.producto.nombre}</span>
+                      <div style={{ flex:1 }}>
+                        <span style={{ fontSize:12, color:'var(--text)' }}>{item.producto.nombre}</span>
+                        {item.sabores && item.sabores.length > 0 && (
+                          <div style={{ fontSize:10, color:'var(--text3)', marginTop:2 }}>
+                            {item.sabores.map(s => s.nombre).join(', ')}
+                          </div>
+                        )}
+                      </div>
+                      <span style={{ fontSize:11, color:'var(--text3)' }}>${getPrecio(item.producto, canalSeleccionado) * item.cantidad}</span>
                       <button onClick={() => cambiarCantidad(item.producto.id, -1)}
                         style={{ width:22, height:22, borderRadius:4, border:'1px solid var(--border)', background:'var(--surface)', color:'var(--text)', cursor:'pointer', fontSize:14, display:'flex', alignItems:'center', justifyContent:'center' }}>−</button>
                       <span style={{ fontSize:13, fontWeight:600, color:'var(--accent)', minWidth:20, textAlign:'center' }}>{item.cantidad}</span>
@@ -526,25 +638,20 @@ export default function CorteTurnoPage() {
                 </div>
               )}
 
-              {/* Total */}
-              <div style={{ marginBottom:16 }}>
-                <div style={{ fontSize:10, color:'var(--text3)', marginBottom:6, textTransform:'uppercase', letterSpacing:1 }}>Total ($)</div>
-                <input value={totalManual} onChange={e => setTotalManual(e.target.value)}
-                  type="number" placeholder={`${totalCalculado || '0'}`}
-                  style={{ width:'100%', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'8px 12px', color:'var(--text)', fontSize:14, outline:'none', boxSizing:'border-box', fontWeight:600 }} />
-                <div style={{ fontSize:10, color:'var(--text3)', marginTop:4 }}>
-                  Deja vacío para usar el total calculado por producto
-                </div>
+              {/* Total calculado */}
+              <div style={{ marginBottom:16, display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 12px', background:'var(--surface2)', borderRadius:8 }}>
+                <span style={{ fontSize:12, color:'var(--text3)', textTransform:'uppercase', letterSpacing:1 }}>Total</span>
+                <span style={{ fontSize:18, fontWeight:700, color:'var(--accent)' }}>${totalCalculado.toLocaleString()}</span>
               </div>
 
               <div style={{ display:'flex', gap:8 }}>
-                <button onClick={() => { setShowNuevoPedido(false); setItemsSeleccionados([]); setTotalManual('') }}
+                <button onClick={() => { setShowNuevoPedido(false); setItemsSeleccionados([]); setPaqueteConfigurandoId(null); setTempSabores([]) }}
                   style={{ flex:1, padding:'10px', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, cursor:'pointer', color:'var(--text2)', fontSize:12 }}>
                   Cancelar
                 </button>
                 <button onClick={agregarPedido} disabled={guardando || itemsSeleccionados.length === 0}
                   style={{ flex:1, padding:'10px', background: guardando ? 'var(--surface2)' : 'var(--accent)', border:'none', borderRadius:8, cursor: guardando ? 'not-allowed' : 'pointer', color:'#0e0f0c', fontSize:12, fontWeight:700, opacity: guardando ? 0.6 : 1 }}>
-                  {guardando ? 'Guardando...' : `Registrar · $${totalManual || totalCalculado}`}
+                  {guardando ? 'Guardando...' : `Registrar · $${totalCalculado.toLocaleString()}`}
                 </button>
               </div>
             </div>
