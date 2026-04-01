@@ -55,7 +55,7 @@ export default function DashboardPage() {
     supabase
       .from('pedidos')
       .select('total')
-      .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+      .gte('created_at', (() => { const hoy = new Date(); hoy.setHours(0,0,0,0); return hoy.toISOString() })())
       .then(({ data }) => {
         if (!data) return
         const total = data.reduce((a, p) => a + (p.total || 0), 0)
