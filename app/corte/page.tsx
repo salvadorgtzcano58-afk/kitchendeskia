@@ -218,6 +218,7 @@ export default function CorteTurnoPage() {
     const items = itemsSeleccionados.map(i => ({
       pedido_id: pedidoDB.id,
       producto_id: i.producto.id,
+      producto_nombre: i.producto.nombre,
       cantidad: i.cantidad,
       precio_unitario: totalCalculado / itemsSeleccionados.reduce((a, x) => a + x.cantidad, 0),
     }))
