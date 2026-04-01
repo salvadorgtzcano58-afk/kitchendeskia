@@ -51,9 +51,11 @@ export default function DashboardPage() {
       .from('productos')
       .select('id, nombre, stock_actual, unidad')
       .lte('stock_actual', 5)
-      .eq('activo', true)
       .order('stock_actual', { ascending: true })
-      .then(({ data }) => { if (data) setStockCritico(data) })
+      .then(({ data, error }) => {
+        console.log('[dashboard] stock crítico data:', JSON.stringify(data), 'error:', JSON.stringify(error))
+        if (data) setStockCritico(data)
+      })
   }, [])
 
   const ventaHoy = 1730
