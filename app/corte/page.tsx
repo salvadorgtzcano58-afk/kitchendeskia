@@ -84,7 +84,7 @@ export default function CorteTurnoPage() {
     const { data } = await supabase
       .from('pedidos')
       .select('id, canal, total, metodo_pago, created_at, pedido_items(producto_nombre, cantidad)')
-      .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+      .gte('created_at', (() => { const hoy = new Date(); hoy.setHours(0,0,0,0); return hoy.toISOString() })())
       .order('created_at', { ascending: true })
     if (data) {
       setPedidos(data.map(p => ({
@@ -106,10 +106,15 @@ export default function CorteTurnoPage() {
   useEffect(() => {
     const guardado = localStorage.getItem('turno_activo')
     if (guardado) {
-      const { horaInicio: hora } = JSON.parse(guardado)
-      setHoraInicio(hora)
-      setTurnoActivo(true)
-      cargarPedidosDelDia()
+      const { horaInicio: hora, fecha } = JSON.parse(guardado)
+      const hoy = new Date().toISOString().split('T')[0]
+      if (fecha !== hoy) {
+        localStorage.removeItem('turno_activo')
+      } else {
+        setHoraInicio(hora)
+        setTurnoActivo(true)
+        cargarPedidosDelDia()
+      }
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -158,7 +163,7 @@ export default function CorteTurnoPage() {
     setHoraInicio(hora)
     setTurnoActivo(true)
     setGastos([])
-    localStorage.setItem('turno_activo', JSON.stringify({ horaInicio: hora }))
+    localStorage.setItem('turno_activo', JSON.stringify({ horaInicio: hora, fecha: new Date().toISOString().split('T')[0] }))
     await cargarPedidosDelDia()
   }
 
