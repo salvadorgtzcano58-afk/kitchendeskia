@@ -54,7 +54,7 @@ export default function InventarioPage() {
   }, [])
 
   const esPan = (p: Producto) =>
-    p.categoria.toLowerCase().includes('pan') &&
+    p.categoria?.toLowerCase().includes('pan') &&
     !p.nombre.toLowerCase().includes('amigos') &&
     !p.nombre.toLowerCase().includes('familiar')
 
