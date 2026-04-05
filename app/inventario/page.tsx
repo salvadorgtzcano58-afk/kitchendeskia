@@ -1,92 +1,27 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Sidebar from '@/components/Sidebar'
+import { createBrowserClient } from '@supabase/ssr'
+
+const supabase = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
 
 type Producto = {
-  id: number
+  id: string
   nombre: string
-  unidad: string
+  categoria: string
   stock_actual: number
-  requerido_diario: number
-  proveedor: string
+  unidad: string | null
+  requerido_diario: number | null
+  proveedor: string | null
 }
 
-type Pan = {
-  id: number
-  sabor: string
-  piezas: number
-}
-
-const DATA: Producto[] = [
-  { id:1,  nombre:'Leche',            unidad:'lt',    stock_actual:1.1,   requerido_diario:1,     proveedor:'Lácteos' },
-  { id:2,  nombre:'Costillas',        unidad:'bolsa', stock_actual:6,     requerido_diario:1,     proveedor:'Cárnicos' },
-  { id:3,  nombre:'Pollo',            unidad:'bolsa', stock_actual:5,     requerido_diario:2,     proveedor:'Cárnicos' },
-  { id:4,  nombre:'Cebolla',          unidad:'pza',   stock_actual:1.5,   requerido_diario:0.5,   proveedor:'Verduras' },
-  { id:5,  nombre:'Habanero',         unidad:'pza',   stock_actual:3,     requerido_diario:3,     proveedor:'Verduras' },
-  { id:6,  nombre:'Aceite',           unidad:'lt',    stock_actual:0.5,   requerido_diario:0.5,   proveedor:'Abarrotes' },
-  { id:7,  nombre:'Sal con ajo',      unidad:'bote',  stock_actual:0.5,   requerido_diario:0.1,   proveedor:'Abarrotes' },
-  { id:8,  nombre:'Cebollín',         unidad:'pza',   stock_actual:5,     requerido_diario:2.5,   proveedor:'Verduras' },
-  { id:9,  nombre:'Salsa de soya',    unidad:'lt',    stock_actual:0.5,   requerido_diario:0.5,   proveedor:'Abarrotes' },
-  { id:10, nombre:'Salsa inglesa',    unidad:'lt',    stock_actual:1,     requerido_diario:0.5,   proveedor:'Abarrotes' },
-  { id:11, nombre:'Limón',            unidad:'pza',   stock_actual:1000,  requerido_diario:1,     proveedor:'Verduras' },
-  { id:12, nombre:'Tocino',           unidad:'gr',    stock_actual:125,   requerido_diario:100,   proveedor:'Cárnicos' },
-  { id:13, nombre:'Mezcla de quesos', unidad:'gr',    stock_actual:1117,  requerido_diario:90,    proveedor:'Lácteos' },
-  { id:14, nombre:'Harina',           unidad:'gr',    stock_actual:2000,  requerido_diario:135,   proveedor:'Abarrotes' },
-  { id:15, nombre:'Maicena',          unidad:'gr',    stock_actual:190,   requerido_diario:15,    proveedor:'Abarrotes' },
-  { id:16, nombre:'Huevo',            unidad:'pza',   stock_actual:30,    requerido_diario:1,     proveedor:'Lácteos' },
-  { id:17, nombre:'Azúcar',           unidad:'gr',    stock_actual:2000,  requerido_diario:500,   proveedor:'Abarrotes' },
-  { id:18, nombre:'Zanahoria',        unidad:'pza',   stock_actual:4,     requerido_diario:2,     proveedor:'Verduras' },
-  { id:19, nombre:'Calabaza',         unidad:'pza',   stock_actual:3,     requerido_diario:2,     proveedor:'Verduras' },
-  { id:20, nombre:'Elote',            unidad:'gr',    stock_actual:117,   requerido_diario:30,    proveedor:'Verduras' },
-  { id:21, nombre:'Vinagre blanco',   unidad:'lt',    stock_actual:2.5,   requerido_diario:0.5,   proveedor:'Abarrotes' },
-  { id:22, nombre:'Catsup',           unidad:'ml',    stock_actual:700,   requerido_diario:120,   proveedor:'Abarrotes' },
-  { id:23, nombre:'Ajo',              unidad:'gr',    stock_actual:115,   requerido_diario:20,    proveedor:'Verduras' },
-  { id:24, nombre:'Jengibre',         unidad:'gr',    stock_actual:40,    requerido_diario:20,    proveedor:'Verduras' },
-  { id:25, nombre:'Salsa de humo',    unidad:'lt',    stock_actual:1,     requerido_diario:0.015, proveedor:'Abarrotes' },
-]
-
-const PANES_INICIALES: Pan[] = [
-  { id:1,  sabor:'Nutella',              piezas:30 },
-  { id:2,  sabor:'Fresas con crema',     piezas:12 },
-  { id:3,  sabor:'Zarzamora con queso',  piezas:12 },
-  { id:4,  sabor:'Hersheys',             piezas:12 },
-  { id:5,  sabor:'Moka',                 piezas:12 },
-  { id:6,  sabor:'Mango con queso',      piezas:12 },
-  { id:7,  sabor:'Arroz con leche',      piezas:12 },
-  { id:8,  sabor:'Duvalín',              piezas:6 },
-  { id:9,  sabor:'Frambuesa con queso',  piezas:6 },
-  { id:10, sabor:'Nuez',                 piezas:6 },
-  { id:11, sabor:'Taro',                 piezas:6 },
-  { id:12, sabor:'Panditas',             piezas:6 },
-  { id:13, sabor:'Manzana',              piezas:6 },
-  { id:14, sabor:'Gansito',              piezas:6 },
-  { id:15, sabor:'Chococereza',          piezas:6 },
-  { id:16, sabor:'Carlos V',             piezas:6 },
-  { id:17, sabor:'Mora azul',            piezas:6 },
-  { id:18, sabor:'Crema pastelera',      piezas:6 },
-  { id:19, sabor:'Chocolate abuelita',   piezas:6 },
-  { id:20, sabor:'Oreo',                 piezas:6 },
-  { id:21, sabor:'Chocomenta',           piezas:3 },
-  { id:22, sabor:'Maracuyá',             piezas:3 },
-  { id:23, sabor:'Bubulubu',             piezas:3 },
-  { id:24, sabor:'Pay de limón',         piezas:2 },
-]
-
-function dias(p: Producto) {
-  if (p.requerido_diario === 0) return 99
-  return Math.floor(p.stock_actual / p.requerido_diario)
-}
-
-function status(d: number) {
-  if (d >= 4) return 'verde'
-  if (d >= 2) return 'amarillo'
-  return 'rojo'
-}
-
-function panStatus(piezas: number) {
-  if (piezas >= 10) return 'verde'
-  if (piezas >= 4) return 'amarillo'
-  return 'rojo'
+function status(stock: number): 'rojo' | 'amarillo' | 'verde' {
+  if (stock <= 5) return 'rojo'
+  if (stock <= 10) return 'amarillo'
+  return 'verde'
 }
 
 const S = {
@@ -96,43 +31,65 @@ const S = {
 }
 
 export default function InventarioPage() {
-  const [productos, setProductos] = useState<Producto[]>(DATA)
-  const [panes, setPanes] = useState<Pan[]>(PANES_INICIALES)
+  const [productos, setProductos] = useState<Producto[]>([])
+  const [cargando, setCargando] = useState(true)
   const [filtro, setFiltro] = useState('todos')
-  const [editando, setEditando] = useState<number|null>(null)
+  const [editando, setEditando] = useState<string | null>(null)
   const [nuevoStock, setNuevoStock] = useState('')
-  const [editandoPan, setEditandoPan] = useState<number|null>(null)
-  const [nuevasPiezas, setNuevasPiezas] = useState('')
-  const [vista, setVista] = useState<'insumos'|'panes'>('panes')
+  const [vista, setVista] = useState<'insumos' | 'panes'>('panes')
 
-  const filtrados = productos.filter(p => {
-    if (filtro === 'todos') return true
-    return status(dias(p)) === filtro
-  })
+  useEffect(() => {
+    setCargando(true)
+    supabase
+      .from('productos')
+      .select('id, nombre, categoria, stock_actual, unidad, requerido_diario, proveedor')
+      .eq('activo', true)
+      .order('categoria')
+      .order('nombre')
+      .then(({ data, error }) => {
+        if (error) console.error('Error cargando inventario:', error)
+        if (data) setProductos(data)
+        setCargando(false)
+      })
+  }, [])
+
+  const esPan = (p: Producto) =>
+    p.categoria.toLowerCase().includes('pan') &&
+    !p.nombre.toLowerCase().includes('amigos') &&
+    !p.nombre.toLowerCase().includes('familiar')
+
+  const panes = productos.filter(esPan)
+  const insumos = productos.filter(p => !esPan(p))
 
   const counts = {
-    rojo: productos.filter(p => status(dias(p)) === 'rojo').length,
-    amarillo: productos.filter(p => status(dias(p)) === 'amarillo').length,
-    verde: productos.filter(p => status(dias(p)) === 'verde').length,
+    rojo:     insumos.filter(p => status(p.stock_actual) === 'rojo').length,
+    amarillo: insumos.filter(p => status(p.stock_actual) === 'amarillo').length,
+    verde:    insumos.filter(p => status(p.stock_actual) === 'verde').length,
   }
 
-  const totalPanes = panes.reduce((a, p) => a + p.piezas, 0)
-  const panesCriticos = panes.filter(p => panStatus(p.piezas) === 'rojo').length
+  const totalPanes = panes.reduce((a, p) => a + p.stock_actual, 0)
+  const panesCriticos = panes.filter(p => status(p.stock_actual) === 'rojo').length
 
-  const guardar = (id: number) => {
+  const insumosFiltrados = insumos.filter(p => {
+    if (filtro === 'todos') return true
+    return status(p.stock_actual) === filtro
+  })
+
+  const actualizarStock = async (id: string, nuevoValor: number) => {
+    setProductos(prev => prev.map(p => p.id === id ? { ...p, stock_actual: nuevoValor } : p))
+    const { error } = await supabase
+      .from('productos')
+      .update({ stock_actual: nuevoValor })
+      .eq('id', id)
+    if (error) console.error('Error actualizando stock:', error)
+  }
+
+  const guardar = (id: string) => {
     const val = parseFloat(nuevoStock)
-    if (isNaN(val)) return
-    setProductos(prev => prev.map(p => p.id === id ? { ...p, stock_actual: val } : p))
+    if (isNaN(val) || val < 0) return
+    actualizarStock(id, val)
     setEditando(null)
     setNuevoStock('')
-  }
-
-  const guardarPan = (id: number) => {
-    const val = parseInt(nuevasPiezas)
-    if (isNaN(val)) return
-    setPanes(prev => prev.map(p => p.id === id ? { ...p, piezas: val } : p))
-    setEditandoPan(null)
-    setNuevasPiezas('')
   }
 
   const hoy = new Date()
@@ -147,16 +104,19 @@ export default function InventarioPage() {
         <div style={{ padding:'14px 24px', borderBottom:'1px solid var(--border)', background:'var(--surface)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
           <div>
             <div style={{ fontWeight:700, fontSize:16 }}>Inventario</div>
-            <div style={{ fontSize:11, color:'var(--text3)', marginTop:1 }}>Próximo surtido: miércoles · en {diasMiercoles} días</div>
+            <div style={{ fontSize:11, color:'var(--text3)', marginTop:1 }}>
+              Próximo surtido: miércoles · en {diasMiercoles} días
+            </div>
           </div>
           <div style={{ display:'flex', gap:8 }}>
             {[
-              { key:'rojo',     label:`${counts.rojo} críticos`,  color:'#ff5c4d', bg:'rgba(255,92,77,0.12)' },
-              { key:'amarillo', label:`${counts.amarillo} bajos`, color:'#ff9a3c', bg:'rgba(255,154,60,0.12)' },
-              { key:'verde',    label:`${counts.verde} OK`,       color:'#4dffb0', bg:'rgba(77,255,176,0.1)' },
+              { key:'rojo',     label:`${counts.rojo} críticos`,     color:'#ff5c4d', bg:'rgba(255,92,77,0.12)' },
+              { key:'amarillo', label:`${counts.amarillo} bajos`,    color:'#ff9a3c', bg:'rgba(255,154,60,0.12)' },
+              { key:'verde',    label:`${counts.verde} OK`,          color:'#4dffb0', bg:'rgba(77,255,176,0.1)' },
             ].map(s => (
               <div key={s.key} onClick={() => setFiltro(filtro === s.key ? 'todos' : s.key)}
-                style={{ padding:'5px 12px', borderRadius:20, fontSize:11, background:s.bg, color:s.color, cursor:'pointer', fontWeight:500, border: filtro === s.key ? `1px solid ${s.color}` : '1px solid transparent' }}>
+                style={{ padding:'5px 12px', borderRadius:20, fontSize:11, background:s.bg, color:s.color, cursor:'pointer', fontWeight:500,
+                  border: filtro === s.key ? `1px solid ${s.color}` : '1px solid transparent' }}>
                 {s.label}
               </div>
             ))}
@@ -166,11 +126,14 @@ export default function InventarioPage() {
         {/* Tabs vista */}
         <div style={{ display:'flex', borderBottom:'1px solid var(--border)', background:'var(--surface)', padding:'0 24px', gap:4 }}>
           {[
-            { key:'panes',   label:`🥐 Panes al vapor · ${totalPanes} pzas · ${panesCriticos} críticos` },
+            { key:'panes',   label:`🥐 Panes al vapor · ${Math.round(totalPanes)} pzas · ${panesCriticos} críticos` },
             { key:'insumos', label:`📦 Insumos · ${counts.rojo} críticos` },
           ].map(t => (
-            <div key={t.key} onClick={() => setVista(t.key as 'insumos'|'panes')}
-              style={{ padding:'10px 16px', fontSize:12, cursor:'pointer', color: vista === t.key ? 'var(--accent)' : 'var(--text3)', borderBottom: vista === t.key ? '2px solid var(--accent)' : '2px solid transparent', fontWeight: vista === t.key ? 500 : 400 }}>
+            <div key={t.key} onClick={() => setVista(t.key as 'insumos' | 'panes')}
+              style={{ padding:'10px 16px', fontSize:12, cursor:'pointer',
+                color: vista === t.key ? 'var(--accent)' : 'var(--text3)',
+                borderBottom: vista === t.key ? '2px solid var(--accent)' : '2px solid transparent',
+                fontWeight: vista === t.key ? 500 : 400 }}>
               {t.label}
             </div>
           ))}
@@ -178,98 +141,117 @@ export default function InventarioPage() {
 
         <div style={{ flex:1, overflowY:'auto', padding:'16px 24px' }}>
 
+          {cargando && (
+            <div style={{ textAlign:'center', padding:'48px 0', color:'var(--text3)', fontSize:13 }}>
+              Cargando inventario…
+            </div>
+          )}
+
           {/* PANES */}
-          {vista === 'panes' && (
-            <>
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(160px, 1fr))', gap:10, marginBottom:16 }}>
-                {panes.map(p => {
-                  const st = S[panStatus(p.piezas) as keyof typeof S]
-                  const isEdit = editandoPan === p.id
-                  return (
-                    <div key={p.id} style={{ background:'var(--surface)', border:`1px solid ${st.color}33`, borderRadius:10, padding:'12px 14px', position:'relative' }}>
-                      <div style={{ fontSize:11, color:'var(--text2)', marginBottom:6, fontWeight:500 }}>{p.sabor}</div>
-                      {isEdit ? (
-                        <div style={{ display:'flex', gap:4, alignItems:'center' }}>
-                          <input autoFocus type="number" defaultValue={p.piezas}
-                            onChange={e => setNuevasPiezas(e.target.value)}
-                            onKeyDown={e => e.key === 'Enter' && guardarPan(p.id)}
-                            style={{ width:60, background:'var(--surface2)', border:'1px solid var(--accent)', borderRadius:6, padding:'4px 6px', color:'var(--text)', fontSize:13, outline:'none' }} />
-                          <button onClick={() => guardarPan(p.id)} style={{ padding:'4px 8px', background:'var(--accent)', border:'none', borderRadius:6, fontSize:11, cursor:'pointer', color:'#0e0f0c', fontWeight:600 }}>✓</button>
-                          <button onClick={() => setEditandoPan(null)} style={{ padding:'4px 6px', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:6, fontSize:11, cursor:'pointer', color:'var(--text2)' }}>✕</button>
-                        </div>
-                      ) : (
-                        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                          <div style={{ fontSize:26, fontWeight:700, color:st.color, lineHeight:1 }}>{p.piezas}</div>
-                          <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:4 }}>
-                            <span style={{ fontSize:9, padding:'2px 6px', borderRadius:4, background:st.bg, color:st.color }}>{st.label}</span>
-                            <div style={{ display:'flex', gap:3 }}>
-                              <button onClick={() => { setPanes(prev => prev.map(x => x.id === p.id ? {...x, piezas: Math.max(0, x.piezas-1)} : x)) }}
-                                style={{ width:20, height:20, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:4, cursor:'pointer', color:'var(--text2)', fontSize:12, display:'flex', alignItems:'center', justifyContent:'center' }}>−</button>
-                              <button onClick={() => { setPanes(prev => prev.map(x => x.id === p.id ? {...x, piezas: x.piezas+1} : x)) }}
-                                style={{ width:20, height:20, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:4, cursor:'pointer', color:'var(--text2)', fontSize:12, display:'flex', alignItems:'center', justifyContent:'center' }}>+</button>
-                              <button onClick={() => { setEditandoPan(p.id); setNuevasPiezas(String(p.piezas)) }}
-                                style={{ width:20, height:20, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:4, cursor:'pointer', color:'var(--text2)', fontSize:10, display:'flex', alignItems:'center', justifyContent:'center' }}>✎</button>
-                            </div>
+          {!cargando && vista === 'panes' && (
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(160px, 1fr))', gap:10 }}>
+              {panes.map(p => {
+                const st = S[status(p.stock_actual)]
+                const isEdit = editando === p.id
+                return (
+                  <div key={p.id} style={{ background:'var(--surface)', border:`1px solid ${st.color}33`, borderRadius:10, padding:'12px 14px', position:'relative' }}>
+                    <div style={{ fontSize:11, color:'var(--text2)', marginBottom:6, fontWeight:500 }}>{p.nombre}</div>
+                    {isEdit ? (
+                      <div style={{ display:'flex', gap:4, alignItems:'center' }}>
+                        <input autoFocus type="number" defaultValue={p.stock_actual}
+                          onChange={e => setNuevoStock(e.target.value)}
+                          onKeyDown={e => e.key === 'Enter' && guardar(p.id)}
+                          style={{ width:60, background:'var(--surface2)', border:'1px solid var(--accent)', borderRadius:6, padding:'4px 6px', color:'var(--text)', fontSize:13, outline:'none' }} />
+                        <button onClick={() => guardar(p.id)}
+                          style={{ padding:'4px 8px', background:'var(--accent)', border:'none', borderRadius:6, fontSize:11, cursor:'pointer', color:'#0e0f0c', fontWeight:600 }}>✓</button>
+                        <button onClick={() => setEditando(null)}
+                          style={{ padding:'4px 6px', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:6, fontSize:11, cursor:'pointer', color:'var(--text2)' }}>✕</button>
+                      </div>
+                    ) : (
+                      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                        <div style={{ fontSize:26, fontWeight:700, color:st.color, lineHeight:1 }}>{p.stock_actual}</div>
+                        <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:4 }}>
+                          <span style={{ fontSize:9, padding:'2px 6px', borderRadius:4, background:st.bg, color:st.color }}>{st.label}</span>
+                          <div style={{ display:'flex', gap:3 }}>
+                            <button onClick={() => actualizarStock(p.id, Math.max(0, p.stock_actual - 1))}
+                              style={{ width:20, height:20, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:4, cursor:'pointer', color:'var(--text2)', fontSize:12, display:'flex', alignItems:'center', justifyContent:'center' }}>−</button>
+                            <button onClick={() => actualizarStock(p.id, p.stock_actual + 1)}
+                              style={{ width:20, height:20, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:4, cursor:'pointer', color:'var(--text2)', fontSize:12, display:'flex', alignItems:'center', justifyContent:'center' }}>+</button>
+                            <button onClick={() => { setEditando(p.id); setNuevoStock(String(p.stock_actual)) }}
+                              style={{ width:20, height:20, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:4, cursor:'pointer', color:'var(--text2)', fontSize:10, display:'flex', alignItems:'center', justifyContent:'center' }}>✎</button>
                           </div>
                         </div>
-                      )}
-                      <div style={{ fontSize:9, color:'var(--text3)', marginTop:6 }}>piezas disponibles</div>
-                    </div>
-                  )
-                })}
-              </div>
-            </>
+                      </div>
+                    )}
+                    <div style={{ fontSize:9, color:'var(--text3)', marginTop:6 }}>piezas disponibles</div>
+                  </div>
+                )
+              })}
+              {panes.length === 0 && (
+                <div style={{ gridColumn:'1/-1', textAlign:'center', padding:'32px 0', color:'var(--text3)', fontSize:13 }}>
+                  Sin panes registrados
+                </div>
+              )}
+            </div>
           )}
 
           {/* INSUMOS */}
-          {vista === 'insumos' && (
+          {!cargando && vista === 'insumos' && (
             <table style={{ width:'100%', borderCollapse:'collapse' }}>
               <thead>
                 <tr style={{ borderBottom:'1px solid var(--border)' }}>
-                  {['Insumo','Stock actual','Req. diario','Días restantes','Estado','Proveedor',''].map(h => (
+                  {['Insumo', 'Stock actual', 'Req. diario', 'Estado', 'Proveedor', ''].map(h => (
                     <th key={h} style={{ padding:'8px 12px', textAlign:'left', fontSize:10, color:'var(--text3)', textTransform:'uppercase', letterSpacing:1, fontWeight:500 }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {filtrados.map(p => {
-                  const d = dias(p)
-                  const st = S[status(d) as keyof typeof S]
+                {insumosFiltrados.map(p => {
+                  const st = S[status(p.stock_actual)]
                   const isEdit = editando === p.id
                   return (
                     <tr key={p.id} style={{ borderBottom:'1px solid var(--border)' }}>
                       <td style={{ padding:'10px 12px', fontSize:13, fontWeight:500 }}>{p.nombre}</td>
                       <td style={{ padding:'10px 12px', fontSize:13 }}>
-                        {isEdit
-                          ? <input autoFocus type="number" defaultValue={p.stock_actual} onChange={e => setNuevoStock(e.target.value)} onKeyDown={e => e.key === 'Enter' && guardar(p.id)} style={{ width:80, background:'var(--surface2)', border:'1px solid var(--accent)', borderRadius:6, padding:'4px 8px', color:'var(--text)', fontSize:12, outline:'none' }} />
-                          : `${p.stock_actual} ${p.unidad}`
-                        }
+                        {isEdit ? (
+                          <input autoFocus type="number" defaultValue={p.stock_actual}
+                            onChange={e => setNuevoStock(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && guardar(p.id)}
+                            style={{ width:80, background:'var(--surface2)', border:'1px solid var(--accent)', borderRadius:6, padding:'4px 8px', color:'var(--text)', fontSize:12, outline:'none' }} />
+                        ) : (
+                          `${p.stock_actual}${p.unidad ? ` ${p.unidad}` : ''}`
+                        )}
                       </td>
-                      <td style={{ padding:'10px 12px', fontSize:12, color:'var(--text2)' }}>{p.requerido_diario} {p.unidad}</td>
-                      <td style={{ padding:'10px 12px' }}>
-                        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                          <div style={{ width:80, height:4, background:'var(--surface3)', borderRadius:2, overflow:'hidden' }}>
-                            <div style={{ width:`${Math.min(100,(d/7)*100)}%`, height:'100%', background:st.color, borderRadius:2 }} />
-                          </div>
-                          <span style={{ fontSize:12, color:st.color, fontWeight:500 }}>{d >= 99 ? '∞' : `${d}d`}</span>
-                        </div>
+                      <td style={{ padding:'10px 12px', fontSize:12, color:'var(--text2)' }}>
+                        {p.requerido_diario != null ? `${p.requerido_diario}${p.unidad ? ` ${p.unidad}` : ''}` : '—'}
                       </td>
                       <td style={{ padding:'10px 12px' }}>
                         <span style={{ fontSize:10, padding:'3px 8px', borderRadius:6, background:st.bg, color:st.color, fontWeight:500 }}>{st.label}</span>
                       </td>
-                      <td style={{ padding:'10px 12px', fontSize:11, color:'var(--text3)' }}>{p.proveedor}</td>
+                      <td style={{ padding:'10px 12px', fontSize:11, color:'var(--text3)' }}>{p.proveedor ?? '—'}</td>
                       <td style={{ padding:'10px 12px' }}>
-                        {isEdit
-                          ? <div style={{ display:'flex', gap:4 }}>
-                              <button onClick={() => guardar(p.id)} style={{ padding:'4px 10px', background:'var(--accent)', border:'none', borderRadius:6, fontSize:11, cursor:'pointer', color:'#0e0f0c', fontWeight:600 }}>✓</button>
-                              <button onClick={() => setEditando(null)} style={{ padding:'4px 10px', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:6, fontSize:11, cursor:'pointer', color:'var(--text2)' }}>✕</button>
-                            </div>
-                          : <button onClick={() => setEditando(p.id)} style={{ padding:'4px 10px', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:6, fontSize:11, cursor:'pointer', color:'var(--text2)' }}>Actualizar</button>
-                        }
+                        {isEdit ? (
+                          <div style={{ display:'flex', gap:4 }}>
+                            <button onClick={() => guardar(p.id)}
+                              style={{ padding:'4px 10px', background:'var(--accent)', border:'none', borderRadius:6, fontSize:11, cursor:'pointer', color:'#0e0f0c', fontWeight:600 }}>✓</button>
+                            <button onClick={() => setEditando(null)}
+                              style={{ padding:'4px 10px', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:6, fontSize:11, cursor:'pointer', color:'var(--text2)' }}>✕</button>
+                          </div>
+                        ) : (
+                          <button onClick={() => { setEditando(p.id); setNuevoStock(String(p.stock_actual)) }}
+                            style={{ padding:'4px 10px', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:6, fontSize:11, cursor:'pointer', color:'var(--text2)' }}>Actualizar</button>
+                        )}
                       </td>
                     </tr>
                   )
                 })}
+                {insumosFiltrados.length === 0 && (
+                  <tr>
+                    <td colSpan={6} style={{ padding:'32px', textAlign:'center', color:'var(--text3)', fontSize:13 }}>
+                      Sin insumos en esta categoría
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           )}

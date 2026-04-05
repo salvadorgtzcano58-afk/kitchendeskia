@@ -599,14 +599,18 @@ export default function CorteTurnoPage() {
                           const precio = getPrecio(prod, canalSeleccionado)
                           return (
                             <button key={prod.id} onClick={() => agregarItem(prod)}
-                              style={{ padding:'4px 10px', borderRadius:6, fontSize:11, cursor:'pointer', fontWeight:500,
+                              disabled={prod.stock_actual <= 0}
+                              style={{ padding:'4px 10px', borderRadius:6, fontSize:11, fontWeight:500,
+                                cursor: prod.stock_actual <= 0 ? 'not-allowed' : 'pointer',
+                                opacity: prod.stock_actual <= 0 ? 0.4 : 1,
                                 background: seleccionado ? 'rgba(200,241,53,0.12)' : 'var(--surface2)',
                                 color: seleccionado ? 'var(--accent)' : prod.stock_actual <= 3 ? '#ff5c4d' : 'var(--text2)',
                                 border: seleccionado ? '1px solid rgba(200,241,53,0.4)' : '1px solid var(--border)' }}>
                               {prod.nombre}
                               {precio > 0 && <span style={{ fontSize:9, color:'var(--text3)', marginLeft:4 }}>${precio}</span>}
                               {seleccionado && <span style={{ fontWeight:700 }}> ×{seleccionado.cantidad}</span>}
-                              {prod.stock_actual <= 3 && !seleccionado && <span style={{ fontSize:9, marginLeft:4 }}>({prod.stock_actual})</span>}
+                              {prod.stock_actual <= 3 && prod.stock_actual > 0 && !seleccionado && <span style={{ fontSize:9, marginLeft:4 }}>({prod.stock_actual})</span>}
+                              {prod.stock_actual <= 0 && <span style={{ fontSize:9, marginLeft:4 }}>sin stock</span>}
                             </button>
                           )
                         })}
