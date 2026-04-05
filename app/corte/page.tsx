@@ -281,7 +281,10 @@ export default function CorteTurnoPage() {
       precio_unitario: getPrecio(i.producto, canalSeleccionado),
     }))
 
-    await supabase.from('pedido_items').insert(items)
+    const { error: itemsError } = await supabase.from('pedido_items').insert(items)
+    if (itemsError) {
+      console.error('Error insertando pedido_items:', itemsError)
+    }
 
     // 3. Actualizar estado local
     const nuevoPedido: Pedido = {
