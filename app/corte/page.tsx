@@ -261,6 +261,7 @@ export default function CorteTurnoPage() {
         cliente_nombre: 'Cliente',
         total: totalCalculado,
         estado: 'entregado',
+        metodo_pago: metodoPago,
       })
       .select()
       .single()
