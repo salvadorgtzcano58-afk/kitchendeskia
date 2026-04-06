@@ -42,7 +42,7 @@ export default function InventarioPage() {
     setCargando(true)
     supabase
       .from('productos')
-      .select('id, nombre, categoria, stock_actual, unidad, requerido_diario, proveedor')
+      .select('id, nombre, categoria, stock_actual, unidad')
       .order('categoria')
       .then(({ data, error }) => {
         if (error) console.error('Error cargando inventario:', error)
