@@ -43,7 +43,6 @@ export default function InventarioPage() {
     supabase
       .from('productos')
       .select('id, nombre, categoria, stock_actual, unidad, requerido_diario, proveedor')
-      .eq('activo', true)
       .order('categoria')
       .order('nombre')
       .then(({ data, error }) => {
