@@ -273,13 +273,30 @@ export default function CorteTurnoPage() {
     }
 
     // 2. Insertar pedido_items → trigger descuenta stock automáticamente
-    const items = itemsSeleccionados.map(i => ({
-      pedido_id: pedidoDB.id,
-      producto_id: i.producto.id,
-      producto_nombre: i.producto.nombre,
-      cantidad: i.cantidad,
-      precio_unitario: getPrecio(i.producto, canalSeleccionado),
-    }))
+    const items = itemsSeleccionados.flatMap(i => {
+      const piezas = getPiezasPaquete(i.producto)
+      if (piezas !== null && i.sabores && i.sabores.length > 0) {
+        // Paquete: insertar un row por cada sabor individual
+        const precioPorPieza = getPrecio(i.producto, canalSeleccionado) / piezas
+        return i.sabores.map(sabor => {
+          const prodSabor = productos.find(p => p.nombre === sabor.nombre)
+          return {
+            pedido_id: pedidoDB.id,
+            producto_id: prodSabor?.id ?? i.producto.id,
+            producto_nombre: sabor.nombre,
+            cantidad: 1,
+            precio_unitario: precioPorPieza,
+          }
+        })
+      }
+      return [{
+        pedido_id: pedidoDB.id,
+        producto_id: i.producto.id,
+        producto_nombre: i.producto.nombre,
+        cantidad: i.cantidad,
+        precio_unitario: getPrecio(i.producto, canalSeleccionado),
+      }]
+    })
 
     const { error: itemsError } = await supabase.from('pedido_items').insert(items)
     if (itemsError) {

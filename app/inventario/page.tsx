@@ -14,6 +14,7 @@ type Producto = {
   categoria: string
   stock_actual: number
   unidad: string | null
+  requerido_diario: number | null
 }
 
 function status(stock: number): 'rojo' | 'amarillo' | 'verde' {
@@ -40,7 +41,7 @@ export default function InventarioPage() {
     setCargando(true)
     supabase
       .from('productos')
-      .select('id, nombre, categoria, stock_actual, unidad')
+      .select('id, nombre, categoria, stock_actual, unidad, requerido_diario')
       .order('categoria')
       .then(({ data, error }) => {
         if (error) console.error('Error cargando inventario:', error)
@@ -196,7 +197,7 @@ export default function InventarioPage() {
             <table style={{ width:'100%', borderCollapse:'collapse' }}>
               <thead>
                 <tr style={{ borderBottom:'1px solid var(--border)' }}>
-                  {['Insumo', 'Stock actual', 'Estado', ''].map(h => (
+                  {['Insumo', 'Stock actual', 'Req. diario', 'Días restantes', 'Estado', ''].map(h => (
                     <th key={h} style={{ padding:'8px 12px', textAlign:'left', fontSize:10, color:'var(--text3)', textTransform:'uppercase', letterSpacing:1, fontWeight:500 }}>{h}</th>
                   ))}
                 </tr>
@@ -217,6 +218,23 @@ export default function InventarioPage() {
                         ) : (
                           `${p.stock_actual}${p.unidad ? ` ${p.unidad}` : ''}`
                         )}
+                      </td>
+                      <td style={{ padding:'10px 12px', fontSize:12, color:'var(--text2)' }}>
+                        {p.requerido_diario != null ? `${p.requerido_diario}${p.unidad ? ` ${p.unidad}` : ''}` : '—'}
+                      </td>
+                      <td style={{ padding:'10px 12px' }}>
+                        {p.requerido_diario ? (() => {
+                          const d = Math.floor(p.stock_actual / p.requerido_diario)
+                          const color = d <= 1 ? '#ff5c4d' : d <= 3 ? '#ff9a3c' : '#4dffb0'
+                          return (
+                            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                              <div style={{ width:80, height:4, background:'var(--surface3)', borderRadius:2, overflow:'hidden' }}>
+                                <div style={{ width:`${Math.min(100,(d/7)*100)}%`, height:'100%', background:color, borderRadius:2 }} />
+                              </div>
+                              <span style={{ fontSize:12, color, fontWeight:500 }}>{d}d</span>
+                            </div>
+                          )
+                        })() : <span style={{ fontSize:12, color:'var(--text3)' }}>—</span>}
                       </td>
                       <td style={{ padding:'10px 12px' }}>
                         <span style={{ fontSize:10, padding:'3px 8px', borderRadius:6, background:st.bg, color:st.color, fontWeight:500 }}>{st.label}</span>
@@ -239,7 +257,7 @@ export default function InventarioPage() {
                 })}
                 {insumosFiltrados.length === 0 && (
                   <tr>
-                    <td colSpan={4} style={{ padding:'32px', textAlign:'center', color:'var(--text3)', fontSize:13 }}>
+                    <td colSpan={6} style={{ padding:'32px', textAlign:'center', color:'var(--text3)', fontSize:13 }}>
                       Sin insumos en esta categoría
                     </td>
                   </tr>
