@@ -14,8 +14,6 @@ type Producto = {
   categoria: string
   stock_actual: number
   unidad: string | null
-  requerido_diario: number | null
-  proveedor: string | null
 }
 
 function status(stock: number): 'rojo' | 'amarillo' | 'verde' {
@@ -198,7 +196,7 @@ export default function InventarioPage() {
             <table style={{ width:'100%', borderCollapse:'collapse' }}>
               <thead>
                 <tr style={{ borderBottom:'1px solid var(--border)' }}>
-                  {['Insumo', 'Stock actual', 'Req. diario', 'Estado', 'Proveedor', ''].map(h => (
+                  {['Insumo', 'Stock actual', 'Estado', ''].map(h => (
                     <th key={h} style={{ padding:'8px 12px', textAlign:'left', fontSize:10, color:'var(--text3)', textTransform:'uppercase', letterSpacing:1, fontWeight:500 }}>{h}</th>
                   ))}
                 </tr>
@@ -220,13 +218,9 @@ export default function InventarioPage() {
                           `${p.stock_actual}${p.unidad ? ` ${p.unidad}` : ''}`
                         )}
                       </td>
-                      <td style={{ padding:'10px 12px', fontSize:12, color:'var(--text2)' }}>
-                        {p.requerido_diario != null ? `${p.requerido_diario}${p.unidad ? ` ${p.unidad}` : ''}` : '—'}
-                      </td>
                       <td style={{ padding:'10px 12px' }}>
                         <span style={{ fontSize:10, padding:'3px 8px', borderRadius:6, background:st.bg, color:st.color, fontWeight:500 }}>{st.label}</span>
                       </td>
-                      <td style={{ padding:'10px 12px', fontSize:11, color:'var(--text3)' }}>{p.proveedor ?? '—'}</td>
                       <td style={{ padding:'10px 12px' }}>
                         {isEdit ? (
                           <div style={{ display:'flex', gap:4 }}>
@@ -245,7 +239,7 @@ export default function InventarioPage() {
                 })}
                 {insumosFiltrados.length === 0 && (
                   <tr>
-                    <td colSpan={6} style={{ padding:'32px', textAlign:'center', color:'var(--text3)', fontSize:13 }}>
+                    <td colSpan={4} style={{ padding:'32px', textAlign:'center', color:'var(--text3)', fontSize:13 }}>
                       Sin insumos en esta categoría
                     </td>
                   </tr>
