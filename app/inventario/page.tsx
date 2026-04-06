@@ -56,7 +56,10 @@ export default function InventarioPage() {
     !p.nombre.toLowerCase().includes('familiar')
 
   const panes = productos.filter(esPan)
-  const insumos = productos.filter(p => !esPan(p))
+  const esInsumo = (p: Producto) =>
+    p.categoria === 'Insumos' || p.categoria === 'Empaque'
+
+  const insumos = productos.filter(esInsumo)
 
   const counts = {
     rojo:     insumos.filter(p => status(p.stock_actual) === 'rojo').length,
