@@ -44,7 +44,6 @@ export default function InventarioPage() {
       .from('productos')
       .select('id, nombre, categoria, stock_actual, unidad, requerido_diario, proveedor')
       .order('categoria')
-      .order('nombre')
       .then(({ data, error }) => {
         if (error) console.error('Error cargando inventario:', error)
         if (data) setProductos(data)
