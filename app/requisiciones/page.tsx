@@ -1,13 +1,19 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Sidebar from '@/components/Sidebar'
+import { createBrowserClient } from '@supabase/ssr'
+
+const supabase = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
 
 type ItemReq = {
-  id: number
+  id: string
   nombre: string
-  unidad: string
+  unidad: string | null
   stock_actual: number
-  requerido_diario: number
+  requerido_diario: number | null
   cantidad_pedir: number
   incluir: boolean
 }
@@ -19,17 +25,6 @@ type Pan = {
   cantidad_pedir: number
   incluir: boolean
 }
-
-const INSUMOS_CRITICOS: ItemReq[] = [
-  { id:1,  nombre:'Leche',            unidad:'lt',    stock_actual:1.1,  requerido_diario:1,    cantidad_pedir:7,   incluir:true },
-  { id:5,  nombre:'Habanero',         unidad:'pza',   stock_actual:3,    requerido_diario:3,    cantidad_pedir:21,  incluir:true },
-  { id:6,  nombre:'Aceite',           unidad:'lt',    stock_actual:0.5,  requerido_diario:0.5,  cantidad_pedir:4,   incluir:true },
-  { id:9,  nombre:'Salsa de soya',    unidad:'lt',    stock_actual:0.5,  requerido_diario:0.5,  cantidad_pedir:4,   incluir:true },
-  { id:12, nombre:'Tocino',           unidad:'gr',    stock_actual:125,  requerido_diario:100,  cantidad_pedir:700, incluir:true },
-  { id:8,  nombre:'Cebollín',         unidad:'pza',   stock_actual:5,    requerido_diario:2.5,  cantidad_pedir:18,  incluir:true },
-  { id:3,  nombre:'Pollo',            unidad:'bolsa', stock_actual:5,    requerido_diario:2,    cantidad_pedir:14,  incluir:true },
-  { id:24, nombre:'Jengibre',         unidad:'gr',    stock_actual:40,   requerido_diario:20,   cantidad_pedir:140, incluir:true },
-]
 
 const PANES: Pan[] = [
   { id:1,  sabor:'Nutella',             piezas:30, cantidad_pedir:12, incluir:false },
@@ -69,26 +64,53 @@ function generarMensajePanes(panes: Pan[]) {
 
 function generarMensajeInsumos(insumos: ItemReq[]) {
   const seleccionados = insumos.filter(i => i.incluir)
-  const lista = seleccionados.map(i => `• ${i.nombre}: ${i.cantidad_pedir} ${i.unidad}`).join('\n')
+  const lista = seleccionados.map(i => `• ${i.nombre}: ${i.cantidad_pedir}${i.unidad ? ` ${i.unidad}` : ''}`).join('\n')
   return `🛒 *PEDIDO INSUMOS PANEKI NEKO*\n📅 ${hoy}\n\nHola Cristy! Te paso lo que necesitamos:\n\n${lista}\n\n¿Puedes surtir para el miércoles? Muchas gracias! 🙏`
 }
 
 export default function RequisicionesPage() {
-  const [insumos, setInsumos] = useState<ItemReq[]>(INSUMOS_CRITICOS)
+  const [insumos, setInsumos] = useState<ItemReq[]>([])
+  const [cargando, setCargando] = useState(true)
   const [panes, setPanes] = useState<Pan[]>(PANES)
   const [tab, setTab] = useState<'panes'|'insumos'>('panes')
   const [enviado, setEnviado] = useState<'panes'|'insumos'|null>(null)
 
-  const toggleInsumo = (id: number) => setInsumos(prev => prev.map(i => i.id === id ? {...i, incluir: !i.incluir} : i))
+  useEffect(() => {
+    supabase
+      .from('productos')
+      .select('id, nombre, unidad, stock_actual, requerido_diario')
+      .in('categoria', ['Insumos', 'Empaque'])
+      .order('nombre')
+      .then(({ data, error }) => {
+        if (error) console.error('Error cargando insumos:', error)
+        if (data) {
+          setInsumos(data.map(p => ({
+            ...p,
+            cantidad_pedir: p.requerido_diario ? p.requerido_diario * 7 : 1,
+            incluir: true,
+          })))
+        }
+        setCargando(false)
+      })
+  }, [])
+
+  const toggleInsumo = (id: string) => setInsumos(prev => prev.map(i => i.id === id ? {...i, incluir: !i.incluir} : i))
   const togglePan = (id: number) => setPanes(prev => prev.map(p => p.id === id ? {...p, incluir: !p.incluir} : p))
-  const updateCantidadInsumo = (id: number, val: number) => setInsumos(prev => prev.map(i => i.id === id ? {...i, cantidad_pedir: val} : i))
+  const updateCantidadInsumo = (id: string, val: number) => setInsumos(prev => prev.map(i => i.id === id ? {...i, cantidad_pedir: val} : i))
   const updateCantidadPan = (id: number, val: number) => setPanes(prev => prev.map(p => p.id === id ? {...p, cantidad_pedir: val} : p))
 
-  const enviarWhatsApp = (tipo: 'panes'|'insumos') => {
-    const numero = tipo === 'panes' ? '525560044346' : '524621153409'
-    const mensaje = tipo === 'panes' ? generarMensajePanes(panes) : generarMensajeInsumos(insumos)
+  const enviarWhatsApp = async (tipo: 'panes'|'insumos') => {
+    const numero    = tipo === 'panes' ? '525560044346' : '524621153409'
+    const proveedor = tipo === 'panes' ? 'Shaaron' : 'Cristy'
+    const mensaje   = tipo === 'panes' ? generarMensajePanes(panes) : generarMensajeInsumos(insumos)
+
+    const { error } = await supabase
+      .from('requisiciones_log')
+      .insert({ tipo, proveedor, mensaje })
+    if (error) console.error('Error guardando historial:', error)
+
     const url = `https://wa.me/${numero}?text=${encodeURIComponent(mensaje)}`
-    window.open(url, '_blank')
+    window.location.href = url
     setEnviado(tipo)
   }
 
@@ -128,7 +150,9 @@ export default function RequisicionesPage() {
           <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, overflow:'hidden' }}>
             <div style={{ padding:'12px 16px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
               <span style={{ fontSize:11, color:'var(--text3)', textTransform:'uppercase', letterSpacing:1 }}>
-                {tab === 'panes' ? `${panesSeleccionados.length} sabores · ${totalPanes} piezas total` : `${insumosSeleccionados.length} insumos seleccionados`}
+                {tab === 'panes'
+                  ? `${panesSeleccionados.length} sabores · ${totalPanes} piezas total`
+                  : cargando ? 'Cargando insumos…' : `${insumosSeleccionados.length} insumos seleccionados`}
               </span>
               <button onClick={() => tab === 'panes' ? setPanes(p => p.map(x => ({...x, incluir:true}))) : setInsumos(i => i.map(x => ({...x, incluir:true})))}
                 style={{ fontSize:11, color:'var(--accent)', background:'none', border:'none', cursor:'pointer' }}>
@@ -152,18 +176,33 @@ export default function RequisicionesPage() {
               </div>
             ))}
 
-            {tab === 'insumos' && insumos.map(i => (
+            {tab === 'insumos' && cargando && (
+              <div style={{ padding:'32px', textAlign:'center', color:'var(--text3)', fontSize:13 }}>
+                Cargando insumos…
+              </div>
+            )}
+
+            {tab === 'insumos' && !cargando && insumos.length === 0 && (
+              <div style={{ padding:'32px', textAlign:'center', color:'var(--text3)', fontSize:13 }}>
+                Sin insumos registrados
+              </div>
+            )}
+
+            {tab === 'insumos' && !cargando && insumos.map(i => (
               <div key={i.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 16px', borderBottom:'1px solid var(--border)', background: i.incluir ? 'transparent' : 'rgba(255,255,255,0.02)', opacity: i.incluir ? 1 : 0.5 }}>
                 <input type="checkbox" checked={i.incluir} onChange={() => toggleInsumo(i.id)} style={{ accentColor:'var(--accent)', width:16, height:16, cursor:'pointer' }} />
                 <div style={{ flex:1 }}>
                   <div style={{ fontSize:13, fontWeight:500, color:'var(--text)' }}>{i.nombre}</div>
-                  <div style={{ fontSize:10, color:'var(--text3)' }}>Stock: {i.stock_actual} {i.unidad} · Req. diario: {i.requerido_diario} {i.unidad}</div>
+                  <div style={{ fontSize:10, color:'var(--text3)' }}>
+                    Stock: {i.stock_actual}{i.unidad ? ` ${i.unidad}` : ''}
+                    {i.requerido_diario != null ? ` · Req. diario: ${i.requerido_diario}${i.unidad ? ` ${i.unidad}` : ''}` : ''}
+                  </div>
                 </div>
                 <div style={{ display:'flex', alignItems:'center', gap:6 }}>
                   <button onClick={() => updateCantidadInsumo(i.id, Math.max(1, i.cantidad_pedir - 1))} style={{ width:24, height:24, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:6, cursor:'pointer', color:'var(--text2)', fontSize:14, display:'flex', alignItems:'center', justifyContent:'center' }}>−</button>
                   <span style={{ fontSize:14, fontWeight:600, color:'var(--accent)', minWidth:40, textAlign:'center' }}>{i.cantidad_pedir}</span>
                   <button onClick={() => updateCantidadInsumo(i.id, i.cantidad_pedir + 1)} style={{ width:24, height:24, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:6, cursor:'pointer', color:'var(--text2)', fontSize:14, display:'flex', alignItems:'center', justifyContent:'center' }}>+</button>
-                  <span style={{ fontSize:11, color:'var(--text3)', minWidth:24 }}>{i.unidad}</span>
+                  <span style={{ fontSize:11, color:'var(--text3)', minWidth:24 }}>{i.unidad ?? ''}</span>
                 </div>
               </div>
             ))}
@@ -193,7 +232,7 @@ export default function RequisicionesPage() {
               </button>
               {enviado === tab && (
                 <div style={{ marginTop:10, fontSize:11, color:'#25D366', textAlign:'center' }}>
-                  ✓ Abriendo WhatsApp...
+                  ✓ Abriendo WhatsApp…
                 </div>
               )}
             </div>
