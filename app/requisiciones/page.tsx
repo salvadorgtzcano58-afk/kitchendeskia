@@ -14,8 +14,44 @@ type ItemReq = {
   unidad: string | null
   stock_actual: number
   requerido_diario: number | null
+  stock_objetivo: number
   cantidad_pedir: number
   incluir: boolean
+}
+
+const STOCK_OBJETIVO: Record<string, number> = {
+  // Alta rotación — objetivo 25
+  'Nutella': 25,
+  'Fresas con crema': 25,
+  'Zarzamora con queso': 25,
+  'Mango con queso': 25,
+  'Frambuesa con queso': 25,
+  'Oreo': 25,
+  'Ferrero': 25,
+  // Media rotación — objetivo 15
+  'Hersheys': 15,
+  'Arroz con leche': 15,
+  'Taro': 15,
+  'Panditas': 15,
+  'Gansito': 15,
+  'Chococereza': 15,
+  'Carlos V': 15,
+  'Mora azul': 15,
+  'Crema pastelera': 15,
+  'Chocolate abuelita': 15,
+  'Maracuyá': 15,
+  'Frutos rojos': 15,
+  'Pay de limón': 15,
+  'Chocomenta': 15,
+  // Baja rotación — objetivo 10
+  'Moka': 10,
+  'Duvalín': 10,
+  'Nuez': 10,
+  'Manzana': 10,
+  'Bubulubu': 10,
+  'Durazno con crema': 10,
+  'Cajeta': 10,
+  'Baileys': 10,
 }
 
 
@@ -60,16 +96,29 @@ export default function RequisicionesPage() {
       if (resInsumos.data) {
         setInsumos(resInsumos.data.map(p => ({
           ...p,
+          stock_objetivo: 0,
           cantidad_pedir: p.requerido_diario ? p.requerido_diario * 7 : 1,
           incluir: true,
         })))
       }
       if (resPanes.data) {
-        setPanes(resPanes.data.map(p => ({
-          ...p,
-          cantidad_pedir: 12,
-          incluir: true,
-        })))
+        const mapped = resPanes.data.map(p => {
+          const objetivo = STOCK_OBJETIVO[p.nombre] ?? 15
+          const cantidad_pedir = Math.max(0, objetivo - p.stock_actual)
+          return {
+            ...p,
+            stock_objetivo: objetivo,
+            cantidad_pedir,
+            incluir: cantidad_pedir > 0,
+          }
+        })
+        mapped.sort((a, b) => {
+          const aNecesita = a.cantidad_pedir > 0
+          const bNecesita = b.cantidad_pedir > 0
+          if (aNecesita !== bNecesita) return aNecesita ? -1 : 1
+          return a.stock_actual - b.stock_actual
+        })
+        setPanes(mapped)
       }
       setCargando(false)
     })
@@ -160,10 +209,15 @@ export default function RequisicionesPage() {
                 <input type="checkbox" checked={p.incluir} onChange={() => togglePan(p.id)} style={{ accentColor:'var(--accent)', width:16, height:16, cursor:'pointer' }} />
                 <div style={{ flex:1 }}>
                   <div style={{ fontSize:13, fontWeight:500, color:'var(--text)' }}>{p.nombre}</div>
-                  <div style={{ fontSize:10, color:'var(--text3)' }}>Stock actual: {p.stock_actual} pzas</div>
+                  <div style={{ fontSize:10, color:'var(--text3)' }}>
+                    Stock: {p.stock_actual} · Objetivo: {p.stock_objetivo}
+                    {p.stock_actual >= p.stock_objetivo
+                      ? <span style={{ color:'#25D366', marginLeft:4 }}>✓ completo</span>
+                      : <span style={{ color:'var(--accent)', marginLeft:4 }}>falta {p.stock_objetivo - p.stock_actual}</span>}
+                  </div>
                 </div>
                 <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                  <button onClick={() => updateCantidadPan(p.id, Math.max(1, p.cantidad_pedir - 1))} style={{ width:24, height:24, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:6, cursor:'pointer', color:'var(--text2)', fontSize:14, display:'flex', alignItems:'center', justifyContent:'center' }}>−</button>
+                  <button onClick={() => updateCantidadPan(p.id, Math.max(0, p.cantidad_pedir - 1))} style={{ width:24, height:24, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:6, cursor:'pointer', color:'var(--text2)', fontSize:14, display:'flex', alignItems:'center', justifyContent:'center' }}>−</button>
                   <span style={{ fontSize:14, fontWeight:600, color:'var(--accent)', minWidth:32, textAlign:'center' }}>{p.cantidad_pedir}</span>
                   <button onClick={() => updateCantidadPan(p.id, p.cantidad_pedir + 1)} style={{ width:24, height:24, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:6, cursor:'pointer', color:'var(--text2)', fontSize:14, display:'flex', alignItems:'center', justifyContent:'center' }}>+</button>
                   <span style={{ fontSize:11, color:'var(--text3)', minWidth:24 }}>pzas</span>
