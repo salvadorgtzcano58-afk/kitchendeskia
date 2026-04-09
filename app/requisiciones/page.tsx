@@ -18,46 +18,12 @@ type ItemReq = {
   incluir: boolean
 }
 
-type Pan = {
-  id: number
-  sabor: string
-  piezas: number
-  cantidad_pedir: number
-  incluir: boolean
-}
-
-const PANES: Pan[] = [
-  { id:1,  sabor:'Nutella',             piezas:30, cantidad_pedir:12, incluir:false },
-  { id:2,  sabor:'Fresas con crema',    piezas:12, cantidad_pedir:12, incluir:true },
-  { id:3,  sabor:'Zarzamora con queso', piezas:12, cantidad_pedir:12, incluir:true },
-  { id:4,  sabor:'Hersheys',            piezas:12, cantidad_pedir:12, incluir:true },
-  { id:5,  sabor:'Moka',                piezas:12, cantidad_pedir:12, incluir:true },
-  { id:6,  sabor:'Mango con queso',     piezas:12, cantidad_pedir:12, incluir:true },
-  { id:7,  sabor:'Arroz con leche',     piezas:12, cantidad_pedir:12, incluir:true },
-  { id:8,  sabor:'Duvalín',             piezas:6,  cantidad_pedir:12, incluir:true },
-  { id:9,  sabor:'Frambuesa con queso', piezas:6,  cantidad_pedir:12, incluir:true },
-  { id:10, sabor:'Nuez',                piezas:6,  cantidad_pedir:12, incluir:true },
-  { id:11, sabor:'Taro',                piezas:6,  cantidad_pedir:12, incluir:true },
-  { id:12, sabor:'Panditas',            piezas:6,  cantidad_pedir:12, incluir:true },
-  { id:13, sabor:'Manzana',             piezas:6,  cantidad_pedir:12, incluir:true },
-  { id:14, sabor:'Gansito',             piezas:6,  cantidad_pedir:12, incluir:true },
-  { id:15, sabor:'Chococereza',         piezas:6,  cantidad_pedir:12, incluir:true },
-  { id:16, sabor:'Carlos V',            piezas:6,  cantidad_pedir:12, incluir:true },
-  { id:17, sabor:'Mora azul',           piezas:6,  cantidad_pedir:12, incluir:true },
-  { id:18, sabor:'Crema pastelera',     piezas:6,  cantidad_pedir:12, incluir:true },
-  { id:19, sabor:'Chocolate abuelita',  piezas:6,  cantidad_pedir:12, incluir:true },
-  { id:20, sabor:'Oreo',                piezas:6,  cantidad_pedir:12, incluir:true },
-  { id:21, sabor:'Chocomenta',          piezas:3,  cantidad_pedir:12, incluir:true },
-  { id:22, sabor:'Maracuyá',            piezas:3,  cantidad_pedir:12, incluir:true },
-  { id:23, sabor:'Bubulubu',            piezas:3,  cantidad_pedir:12, incluir:true },
-  { id:24, sabor:'Pay de limón',        piezas:2,  cantidad_pedir:12, incluir:true },
-]
 
 const hoy = new Date().toLocaleDateString('es-MX', { weekday:'long', year:'numeric', month:'long', day:'numeric' })
 
-function generarMensajePanes(panes: Pan[]) {
+function generarMensajePanes(panes: ItemReq[]) {
   const seleccionados = panes.filter(p => p.incluir)
-  const lista = seleccionados.map(p => `• ${p.sabor}: ${p.cantidad_pedir} pzas`).join('\n')
+  const lista = seleccionados.map(p => `• ${p.nombre}: ${p.cantidad_pedir} pzas`).join('\n')
   const total = seleccionados.reduce((a, p) => a + p.cantidad_pedir, 0)
   return `🥐 *PEDIDO PANEKI NEKO*\n📅 ${hoy}\n\nHola Shaaron! Te paso el pedido de esta semana:\n\n${lista}\n\n*Total: ${total} piezas*\n\nQuedamos pendientes, muchas gracias! 🙏`
 }
@@ -70,34 +36,49 @@ function generarMensajeInsumos(insumos: ItemReq[]) {
 
 export default function RequisicionesPage() {
   const [insumos, setInsumos] = useState<ItemReq[]>([])
+  const [panes, setPanes] = useState<ItemReq[]>([])
   const [cargando, setCargando] = useState(true)
-  const [panes, setPanes] = useState<Pan[]>(PANES)
   const [tab, setTab] = useState<'panes'|'insumos'>('panes')
   const [enviado, setEnviado] = useState<'panes'|'insumos'|null>(null)
 
   useEffect(() => {
-    supabase
+    const fetchInsumos = supabase
       .from('productos')
       .select('id, nombre, unidad, stock_actual, requerido_diario')
       .in('categoria', ['Insumos', 'Empaque'])
       .order('nombre')
-      .then(({ data, error }) => {
-        if (error) console.error('Error cargando insumos:', error)
-        if (data) {
-          setInsumos(data.map(p => ({
-            ...p,
-            cantidad_pedir: p.requerido_diario ? p.requerido_diario * 7 : 1,
-            incluir: true,
-          })))
-        }
-        setCargando(false)
-      })
+
+    const fetchPanes = supabase
+      .from('productos')
+      .select('id, nombre, unidad, stock_actual, requerido_diario')
+      .eq('categoria', 'Panes')
+      .order('nombre')
+
+    Promise.all([fetchInsumos, fetchPanes]).then(([resInsumos, resPanes]) => {
+      if (resInsumos.error) console.error('Error cargando insumos:', resInsumos.error)
+      if (resPanes.error)   console.error('Error cargando panes:', resPanes.error)
+      if (resInsumos.data) {
+        setInsumos(resInsumos.data.map(p => ({
+          ...p,
+          cantidad_pedir: p.requerido_diario ? p.requerido_diario * 7 : 1,
+          incluir: true,
+        })))
+      }
+      if (resPanes.data) {
+        setPanes(resPanes.data.map(p => ({
+          ...p,
+          cantidad_pedir: 12,
+          incluir: true,
+        })))
+      }
+      setCargando(false)
+    })
   }, [])
 
   const toggleInsumo = (id: string) => setInsumos(prev => prev.map(i => i.id === id ? {...i, incluir: !i.incluir} : i))
-  const togglePan = (id: number) => setPanes(prev => prev.map(p => p.id === id ? {...p, incluir: !p.incluir} : p))
+  const togglePan = (id: string) => setPanes(prev => prev.map(p => p.id === id ? {...p, incluir: !p.incluir} : p))
   const updateCantidadInsumo = (id: string, val: number) => setInsumos(prev => prev.map(i => i.id === id ? {...i, cantidad_pedir: val} : i))
-  const updateCantidadPan = (id: number, val: number) => setPanes(prev => prev.map(p => p.id === id ? {...p, cantidad_pedir: val} : p))
+  const updateCantidadPan = (id: string, val: number) => setPanes(prev => prev.map(p => p.id === id ? {...p, cantidad_pedir: val} : p))
 
   const enviarWhatsApp = async (tipo: 'panes'|'insumos') => {
     const numero    = tipo === 'panes' ? '525560044346' : '524621153409'
@@ -150,9 +131,11 @@ export default function RequisicionesPage() {
           <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, overflow:'hidden' }}>
             <div style={{ padding:'12px 16px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
               <span style={{ fontSize:11, color:'var(--text3)', textTransform:'uppercase', letterSpacing:1 }}>
-                {tab === 'panes'
-                  ? `${panesSeleccionados.length} sabores · ${totalPanes} piezas total`
-                  : cargando ? 'Cargando insumos…' : `${insumosSeleccionados.length} insumos seleccionados`}
+                {cargando
+                  ? 'Cargando…'
+                  : tab === 'panes'
+                    ? `${panesSeleccionados.length} sabores · ${totalPanes} piezas total`
+                    : `${insumosSeleccionados.length} insumos seleccionados`}
               </span>
               <button onClick={() => tab === 'panes' ? setPanes(p => p.map(x => ({...x, incluir:true}))) : setInsumos(i => i.map(x => ({...x, incluir:true})))}
                 style={{ fontSize:11, color:'var(--accent)', background:'none', border:'none', cursor:'pointer' }}>
@@ -160,12 +143,24 @@ export default function RequisicionesPage() {
               </button>
             </div>
 
-            {tab === 'panes' && panes.map(p => (
+            {tab === 'panes' && cargando && (
+              <div style={{ padding:'32px', textAlign:'center', color:'var(--text3)', fontSize:13 }}>
+                Cargando panes…
+              </div>
+            )}
+
+            {tab === 'panes' && !cargando && panes.length === 0 && (
+              <div style={{ padding:'32px', textAlign:'center', color:'var(--text3)', fontSize:13 }}>
+                Sin panes registrados
+              </div>
+            )}
+
+            {tab === 'panes' && !cargando && panes.map(p => (
               <div key={p.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 16px', borderBottom:'1px solid var(--border)', background: p.incluir ? 'transparent' : 'rgba(255,255,255,0.02)', opacity: p.incluir ? 1 : 0.5 }}>
                 <input type="checkbox" checked={p.incluir} onChange={() => togglePan(p.id)} style={{ accentColor:'var(--accent)', width:16, height:16, cursor:'pointer' }} />
                 <div style={{ flex:1 }}>
-                  <div style={{ fontSize:13, fontWeight:500, color:'var(--text)' }}>{p.sabor}</div>
-                  <div style={{ fontSize:10, color:'var(--text3)' }}>Stock actual: {p.piezas} pzas</div>
+                  <div style={{ fontSize:13, fontWeight:500, color:'var(--text)' }}>{p.nombre}</div>
+                  <div style={{ fontSize:10, color:'var(--text3)' }}>Stock actual: {p.stock_actual} pzas</div>
                 </div>
                 <div style={{ display:'flex', alignItems:'center', gap:6 }}>
                   <button onClick={() => updateCantidadPan(p.id, Math.max(1, p.cantidad_pedir - 1))} style={{ width:24, height:24, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:6, cursor:'pointer', color:'var(--text2)', fontSize:14, display:'flex', alignItems:'center', justifyContent:'center' }}>−</button>
