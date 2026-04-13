@@ -1,10 +1,11 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 
 export default function ResetPasswordPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [password, setPassword]   = useState('')
   const [confirmar, setConfirmar] = useState('')
   const [showPass, setShowPass]   = useState(false)
@@ -12,25 +13,16 @@ export default function ResetPasswordPage() {
   const [error, setError]         = useState('')
   const [tokenValido, setTokenValido] = useState<boolean | null>(null)
 
-  // Supabase detecta el token del hash en la URL y establece la sesión automáticamente.
-  // Escuchamos el evento PASSWORD_RECOVERY para confirmar que el token es válido.
   useEffect(() => {
-    const supabase = createClient()
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') {
-        setTokenValido(true)
-      }
-    })
-
-    // Si después de 4s no llega el evento, el token es inválido o ya expiró
-    const timeout = setTimeout(() => {
-      setTokenValido(prev => prev === null ? false : prev)
-    }, 4000)
-
-    return () => {
-      subscription.unsubscribe()
-      clearTimeout(timeout)
+    const code = searchParams.get('code')
+    if (!code) {
+      setTokenValido(false)
+      return
     }
+    const supabase = createClient()
+    supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
+      setTokenValido(!error)
+    })
   }, [])
 
   const handleSubmit = async () => {
