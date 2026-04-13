@@ -95,6 +95,13 @@ export default function LoginPage() {
             style={{ width:'100%', padding:'13px', background: loading ? 'rgba(200,241,53,0.5)' : '#c8f135', border:'none', borderRadius:10, cursor: loading ? 'not-allowed' : 'pointer', color:'#0e0f0c', fontSize:14, fontWeight:700, marginTop:4, transition:'background 0.15s' }}>
             {loading ? 'Ingresando...' : 'Entrar al sistema'}
           </button>
+
+          <a href="/auth/forgot-password"
+            style={{ textAlign:'center', fontSize:12, color:'#9a9c88', textDecoration:'none', marginTop:2 }}
+            onMouseEnter={e => (e.target as HTMLElement).style.color = '#c8f135'}
+            onMouseLeave={e => (e.target as HTMLElement).style.color = '#9a9c88'}>
+            ¿Olvidaste tu contraseña?
+          </a>
         </div>
       </div>
 
