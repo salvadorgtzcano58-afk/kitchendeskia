@@ -1,9 +1,9 @@
 'use client'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
-import { CentroNotificaciones, useTurnoNotificaciones } from './Notificaciones'
+import { CentroNotificaciones, useTurnoNotificaciones, fetchNotificaciones, type Notificacion } from './Notificaciones'
 
 const nav = [
   { label:'Dashboard',      icon:'📊', href:'/dashboard' },
@@ -15,14 +15,23 @@ const nav = [
   { label:'Proveedores',    icon:'🤝', href:'/proveedores' },
 ]
 
-const NOTIFS_NO_LEIDAS = 3
-
 export default function Sidebar() {
   const path = usePathname()
   const router = useRouter()
   const [showNotifs, setShowNotifs] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
+  const [notifs, setNotifs] = useState<Notificacion[]>([])
+  const [notifsCargando, setNotifsCargando] = useState(true)
   useTurnoNotificaciones()
+
+  useEffect(() => {
+    fetchNotificaciones().then(data => {
+      setNotifs(data)
+      setNotifsCargando(false)
+    })
+  }, [])
+
+  const noLeidas = notifs.filter(n => !n.leida).length
 
   const handleLogout = async () => {
     setLoggingOut(true)
@@ -52,9 +61,9 @@ export default function Sidebar() {
           </div>
           <div onClick={() => setShowNotifs(true)} style={{ position:'relative', cursor:'pointer', padding:4 }}>
             <span style={{ fontSize:18 }}>🔔</span>
-            {NOTIFS_NO_LEIDAS > 0 && (
+            {noLeidas > 0 && (
               <div style={{ position:'absolute', top:0, right:0, width:16, height:16, background:'#ff5c4d', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, color:'#fff', fontWeight:700, border:'2px solid var(--surface)' }}>
-                {NOTIFS_NO_LEIDAS}
+                {noLeidas}
               </div>
             )}
           </div>
@@ -97,9 +106,9 @@ export default function Sidebar() {
           <div onClick={() => setShowNotifs(true)} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 10px', borderRadius:8, marginBottom:2, color:'var(--text2)', cursor:'pointer', transition:'all 0.15s', borderLeft:'2px solid transparent', marginTop:8 }}>
             <span style={{ fontSize:15, width:18, textAlign:'center' }}>🔔</span>
             <span style={{ fontSize:13, flex:1 }}>Actividad</span>
-            {NOTIFS_NO_LEIDAS > 0 && (
+            {noLeidas > 0 && (
               <span style={{ background:'#ff5c4d', color:'#fff', fontSize:9, padding:'1px 6px', borderRadius:10, fontWeight:600 }}>
-                {NOTIFS_NO_LEIDAS}
+                {noLeidas}
               </span>
             )}
           </div>
@@ -131,6 +140,13 @@ export default function Sidebar() {
         </div>
       </aside>
 
-      {showNotifs && <CentroNotificaciones onClose={() => setShowNotifs(false)} />}
+      {showNotifs && (
+        <CentroNotificaciones
+          onClose={() => setShowNotifs(false)}
+          notifs={notifs}
+          setNotifs={setNotifs}
+          cargando={notifsCargando}
+        />
+      )}
     </>
   )}
