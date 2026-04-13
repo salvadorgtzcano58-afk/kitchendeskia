@@ -6,7 +6,7 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Rutas públicas que no requieren login
-  const publicRoutes = ['/login', '/api/whatsapp', '/tianguis']
+  const publicRoutes = ['/login', '/auth/', '/api/whatsapp', '/tianguis']
   if (publicRoutes.some(r => pathname.startsWith(r))) {
     return NextResponse.next()
   }
