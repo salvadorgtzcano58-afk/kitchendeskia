@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 
@@ -96,12 +97,12 @@ export default function LoginPage() {
             {loading ? 'Ingresando...' : 'Entrar al sistema'}
           </button>
 
-          <a href="/auth/forgot-password"
+          <Link href="/auth/forgot-password"
             style={{ textAlign:'center', fontSize:12, color:'#9a9c88', textDecoration:'none', marginTop:2 }}
             onMouseEnter={e => (e.target as HTMLElement).style.color = '#c8f135'}
             onMouseLeave={e => (e.target as HTMLElement).style.color = '#9a9c88'}>
             ¿Olvidaste tu contraseña?
-          </a>
+          </Link>
         </div>
       </div>
 
