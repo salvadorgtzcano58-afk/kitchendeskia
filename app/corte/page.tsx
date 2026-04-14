@@ -27,6 +27,14 @@ const PAGOS_POR_CANAL: Record<Canal, MetodoPago[]> = {
   tianguis:  ['efectivo'],
 }
 
+const DEFAULT_PAGO_CANAL: Record<Canal, MetodoPago> = {
+  whatsapp:  'transferencia',
+  uber_eats: 'tarjeta',
+  rappi:     'tarjeta',
+  didi_food: 'tarjeta',
+  tianguis:  'efectivo',
+}
+
 const PAGO_LABEL: Record<MetodoPago, string> = {
   tarjeta:'Tarjeta', efectivo:'Efectivo', transferencia:'Transferencia', terminal:'Terminal'
 }
@@ -368,7 +376,7 @@ export default function CorteTurnoPage() {
     // 5. Limpiar modal
     setItemsSeleccionados([])
     setCanalSeleccionado('whatsapp')
-    setMetodoPago('efectivo')
+    setMetodoPago(DEFAULT_PAGO_CANAL['whatsapp'])
     setShowNuevoPedido(false)
     setGuardando(false)
     setPaqueteConfigurandoId(null)
@@ -385,7 +393,7 @@ export default function CorteTurnoPage() {
   const eliminarGasto = (i: number) => setGastos(prev => prev.filter((_, idx) => idx !== i))
   const cambiarCanal = (canal: Canal) => {
     setCanalSeleccionado(canal)
-    setMetodoPago(PAGOS_POR_CANAL[canal][0])
+    setMetodoPago(DEFAULT_PAGO_CANAL[canal])
   }
 
   // Productos visibles para el canal seleccionado
