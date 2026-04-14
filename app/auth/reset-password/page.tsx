@@ -1,10 +1,11 @@
 'use client'
 import { Suspense, useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 
 function ResetPasswordContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [password, setPassword]   = useState('')
   const [confirmar, setConfirmar] = useState('')
   const [showPass, setShowPass]   = useState(false)
@@ -13,43 +14,23 @@ function ResetPasswordContent() {
   const [tokenValido, setTokenValido] = useState<boolean | null>(null)
 
   useEffect(() => {
-    const supabase = createClient()
+    const token_hash = searchParams.get('token_hash')
+    const type       = searchParams.get('type')
 
-    // Estrategia 1: evento PASSWORD_RECOVERY (flujo PKCE o magic link)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') {
+    if (!token_hash || type !== 'recovery') {
+      setTokenValido(false)
+      return
+    }
+
+    const supabase = createClient()
+    supabase.auth.verifyOtp({ token_hash, type: 'recovery' }).then(({ error }) => {
+      if (error) {
+        console.error('verifyOtp error:', JSON.stringify(error))
+        setTokenValido(false)
+      } else {
         setTokenValido(true)
       }
     })
-
-    // Estrategia 2: hash con access_token (flujo implícito)
-    const hash = window.location.hash
-    if (hash) {
-      const params = new URLSearchParams(hash.replace('#', ''))
-      const accessToken  = params.get('access_token')
-      const refreshToken = params.get('refresh_token') ?? ''
-      const type         = params.get('type')
-      if (accessToken && type === 'recovery') {
-        supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
-          .then(({ error }) => {
-            if (error) {
-              console.error('setSession error:', JSON.stringify(error))
-            } else {
-              setTokenValido(true)
-            }
-          })
-      }
-    }
-
-    // Fallback: si después de 4s no se confirmó el token, marcar como inválido
-    const timeout = setTimeout(() => {
-      setTokenValido(prev => prev === null ? false : prev)
-    }, 4000)
-
-    return () => {
-      subscription.unsubscribe()
-      clearTimeout(timeout)
-    }
   }, [])
 
   const handleSubmit = async () => {
