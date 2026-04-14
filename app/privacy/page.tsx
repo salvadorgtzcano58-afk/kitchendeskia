@@ -41,7 +41,7 @@ export default function PrivacyPage() {
   ]
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0e0f0c', color: '#e8ead4', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#0e0f0c', color: '#e8ead4', fontFamily: 'system-ui, sans-serif', overflowY: 'auto' }}>
 
       {/* Header */}
       <div style={{ borderBottom: '1px solid rgba(255,255,255,0.07)', padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
