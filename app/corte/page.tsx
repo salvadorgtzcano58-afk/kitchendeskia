@@ -35,6 +35,17 @@ const PRECIO_PAN_FIJO: Record<Canal, number> = {
   tianguis: 30, whatsapp: 32, uber_eats: 70, rappi: 70, didi_food: 70,
 }
 
+// Horario de turno por día de la semana (0=Dom, 1=Lun, ..., 6=Sáb)
+const HORARIO_TURNO: Record<number, { abre: number; cierra: number }> = {
+  0: { abre: 10, cierra: 18 }, // Domingo
+  1: { abre: 10, cierra: 18 }, // Lunes
+  2: { abre: 10, cierra: 18 }, // Martes
+  3: { abre: 10, cierra: 18 }, // Miércoles
+  4: { abre: 10, cierra: 18 }, // Jueves
+  5: { abre: 10, cierra: 15 }, // Viernes
+  6: { abre: 10, cierra: 18 }, // Sábado
+}
+
 type Producto = { id: string; nombre: string; categoria: string; stock_actual: number }
 type ItemPedido = { producto: Producto; cantidad: number; sabores?: Producto[] }
 type Pedido = {
@@ -63,6 +74,8 @@ export default function CorteTurnoPage() {
   const [guardando, setGuardando] = useState(false)
   const [paqueteConfigurandoId, setPaqueteConfigurandoId] = useState<string | null>(null)
   const [tempSabores, setTempSabores] = useState<Producto[]>([])
+  const [turnoAutoCerrado, setTurnoAutoCerrado] = useState(false)
+  const [horaAutoCierre, setHoraAutoCierre] = useState('')
 
   const ventas = pedidos
   const totalVentas = ventas.reduce((a, p) => a + p.total, 0)
@@ -116,25 +129,54 @@ export default function CorteTurnoPage() {
     }
   }
 
-  // Restaurar turno desde localStorage al montar
+  // Restaurar turno desde localStorage al montar, o auto-abrir si estamos en horario
   useEffect(() => {
+    const ahora = new Date()
+    const hoy = ahora.toISOString().split('T')[0]
+    const horario = HORARIO_TURNO[ahora.getDay()]
+    const horaActual = ahora.getHours() + ahora.getMinutes() / 60
+
     const guardado = localStorage.getItem('turno_activo')
     if (guardado) {
       const { horaInicio: hora, fecha } = JSON.parse(guardado)
-      const hoy = new Date().toISOString().split('T')[0]
       if (fecha !== hoy) {
         localStorage.removeItem('turno_activo')
       } else {
         setHoraInicio(hora)
         setTurnoActivo(true)
         cargarPedidosDelDia()
+        return
       }
+    }
+
+    // Auto-apertura: si estamos dentro del horario y no hay turno activo
+    if (horario && horaActual >= horario.abre && horaActual < horario.cierra) {
+      abrirTurno()
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Suscripción en tiempo real: inserts en pedidos canal tianguis
+  // Auto-cierre por horario
   const turnoActivoRef = useRef(turnoActivo)
   useEffect(() => { turnoActivoRef.current = turnoActivo }, [turnoActivo])
+
+  useEffect(() => {
+    const intervalo = setInterval(() => {
+      if (!turnoActivoRef.current) return
+      const ahora = new Date()
+      const horario = HORARIO_TURNO[ahora.getDay()]
+      if (horario && ahora.getHours() >= horario.cierra) {
+        const hora = `${ahora.getHours()}:${String(ahora.getMinutes()).padStart(2,'0')}`
+        setTurnoActivo(false)
+        setShowCierre(false)
+        setTurnoAutoCerrado(true)
+        setHoraAutoCierre(hora)
+        localStorage.removeItem('turno_activo')
+      }
+    }, 60000)
+    return () => clearInterval(intervalo)
+  }, [])
+
+  // Suscripción en tiempo real: inserts en pedidos canal tianguis
 
   useEffect(() => {
     const channel = supabase
@@ -395,12 +437,16 @@ export default function CorteTurnoPage() {
         {/* Sin turno */}
         {!turnoActivo && (
           <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:16 }}>
-            <div style={{ fontSize:48 }}>🍳</div>
-            <div style={{ fontSize:18, fontWeight:700 }}>Sin turno activo</div>
-            <div style={{ fontSize:13, color:'var(--text3)', textAlign:'center', maxWidth:320 }}>
-              Haz clic en "Abrir turno" para comenzar a registrar las ventas del día
+            <div style={{ fontSize:48 }}>{turnoAutoCerrado ? '🌙' : '🍳'}</div>
+            <div style={{ fontSize:18, fontWeight:700 }}>
+              {turnoAutoCerrado ? 'Turno cerrado automáticamente' : 'Sin turno activo'}
             </div>
-            <button onClick={abrirTurno}
+            <div style={{ fontSize:13, color:'var(--text3)', textAlign:'center', maxWidth:320 }}>
+              {turnoAutoCerrado
+                ? 'El turno se cerró al alcanzar el horario de cierre del día.'
+                : 'Haz clic en "Abrir turno" para comenzar a registrar las ventas del día'}
+            </div>
+            <button onClick={() => { setTurnoAutoCerrado(false); abrirTurno() }}
               style={{ padding:'12px 32px', borderRadius:10, fontSize:14, fontWeight:700, cursor:'pointer', background:'var(--accent)', color:'#0e0f0c', border:'none', marginTop:8 }}>
               ▶ Abrir turno ahora
             </button>
@@ -679,6 +725,24 @@ export default function CorteTurnoPage() {
                   {guardando ? 'Guardando...' : `Registrar · $${totalCalculado.toLocaleString()}`}
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Banner cierre automático */}
+        {turnoAutoCerrado && (
+          <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:101 }}>
+            <div style={{ background:'var(--surface)', border:'1px solid rgba(255,154,60,0.4)', borderRadius:14, padding:28, width:360, textAlign:'center' }}>
+              <div style={{ fontSize:40, marginBottom:16 }}>🌙</div>
+              <div style={{ fontSize:16, fontWeight:700, color:'var(--text)', marginBottom:10 }}>Turno cerrado automáticamente</div>
+              <div style={{ fontSize:13, color:'var(--text2)', lineHeight:1.6, marginBottom:24 }}>
+                Tu turno fue cerrado automáticamente a las <span style={{ color:'#ff9a3c', fontWeight:600 }}>{horaAutoCierre}</span>.<br/>
+                Revisa tu corte de caja.
+              </div>
+              <button onClick={() => setTurnoAutoCerrado(false)}
+                style={{ width:'100%', padding:'12px', background:'var(--accent)', border:'none', borderRadius:10, cursor:'pointer', color:'#0e0f0c', fontSize:14, fontWeight:700 }}>
+                Entendido
+              </button>
             </div>
           </div>
         )}
