@@ -1,9 +1,9 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { Suspense, useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 
-export default function ResetPasswordPage() {
+function ResetPasswordContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [password, setPassword]   = useState('')
@@ -21,7 +21,12 @@ export default function ResetPasswordPage() {
     }
     const supabase = createClient()
     supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
-      setTokenValido(!error)
+      if (error) {
+        console.error('exchange error:', error)
+        setTokenValido(false)
+      } else {
+        setTokenValido(true)
+      }
     })
   }, [])
 
@@ -164,5 +169,13 @@ export default function ResetPasswordPage() {
         KitchenDeskia · Paneki Neko · Beta 2026
       </div>
     </div>
+  )
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={<div style={{ color:'#9a9c88', textAlign:'center', marginTop:80 }}>Cargando...</div>}>
+      <ResetPasswordContent />
+    </Suspense>
   )
 }
