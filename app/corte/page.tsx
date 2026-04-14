@@ -24,7 +24,7 @@ const PAGOS_POR_CANAL: Record<Canal, MetodoPago[]> = {
   uber_eats: ['tarjeta', 'efectivo'],
   rappi:     ['tarjeta', 'efectivo'],
   didi_food: ['tarjeta', 'efectivo'],
-  tianguis:  ['efectivo'],
+  tianguis:  ['efectivo', 'transferencia'],
 }
 
 const DEFAULT_PAGO_CANAL: Record<Canal, MetodoPago> = {
