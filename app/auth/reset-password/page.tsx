@@ -22,7 +22,7 @@ function ResetPasswordContent() {
     const supabase = createClient()
     supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
       if (error) {
-        console.error('exchange error:', error)
+        console.error('exchange error:', JSON.stringify(error))
         setTokenValido(false)
       } else {
         setTokenValido(true)
