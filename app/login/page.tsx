@@ -106,8 +106,13 @@ export default function LoginPage() {
         </div>
       </div>
 
-      <div style={{ marginTop:24, fontSize:11, color:'#3a3c2e', textAlign:'center' }}>
-        KitchenDeskia · Paneki Neko · Beta 2026
+      <div style={{ marginTop:24, fontSize:11, color:'#3a3c2e', textAlign:'center', display:'flex', flexDirection:'column', gap:6 }}>
+        <span>KitchenDeskia · Paneki Neko · Beta 2026</span>
+        <a href="/privacy" style={{ color:'#3a3c2e', textDecoration:'none' }}
+          onMouseEnter={e => (e.target as HTMLElement).style.color = '#5a5c4e'}
+          onMouseLeave={e => (e.target as HTMLElement).style.color = '#3a3c2e'}>
+          Política de privacidad
+        </a>
       </div>
     </div>
   )
