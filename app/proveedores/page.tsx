@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Sidebar from '@/components/Sidebar'
 
 type Proveedor = {
@@ -57,6 +57,16 @@ const CAT_INFO = {
 export default function ProveedoresPage() {
   const [selected, setSelected] = useState<Proveedor>(PROVEEDORES[0])
   const [tab, setTab] = useState<'productos'|'historial'>('productos')
+  const [isMobile, setIsMobile] = useState(false)
+  const [showDetail, setShowDetail] = useState(false)
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)')
+    setIsMobile(mq.matches)
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
 
   const enviarWhatsApp = (p: Proveedor) => {
     const url = `https://wa.me/${p.telefono.replace(/\s|\+/g,'')}`
@@ -80,15 +90,15 @@ export default function ProveedoresPage() {
           </div>
         </div>
 
-        <div style={{ flex:1, display:'grid', gridTemplateColumns:'280px 1fr', overflow:'hidden' }}>
+        <div style={{ flex:1, display:'grid', gridTemplateColumns: isMobile ? '1fr' : '280px 1fr', overflow:'hidden' }}>
 
           {/* Lista proveedores */}
-          <div style={{ borderRight:'1px solid var(--border)', overflowY:'auto', padding:12, display:'flex', flexDirection:'column', gap:8 }}>
+          <div style={{ display: isMobile && showDetail ? 'none' : 'flex', borderRight:'1px solid var(--border)', overflowY:'auto', padding:12, flexDirection:'column', gap:8 }}>
             {PROVEEDORES.map(p => {
               const cat = CAT_INFO[p.categoria]
               const isSelected = selected.id === p.id
               return (
-                <div key={p.id} onClick={() => setSelected(p)}
+                <div key={p.id} onClick={() => { setSelected(p); setShowDetail(true) }}
                   style={{ padding:'14px 16px', borderRadius:10, cursor:'pointer', background: isSelected ? 'var(--surface3)' : 'var(--surface)', border: isSelected ? '1px solid rgba(200,241,53,0.3)' : '1px solid var(--border)', transition:'all 0.15s' }}>
                   <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:8 }}>
                     <div style={{ width:40, height:40, borderRadius:'50%', background:cat.bg, border:`1px solid ${cat.color}44`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, fontWeight:700, color:cat.color, fontFamily:'system-ui' }}>
@@ -131,7 +141,13 @@ export default function ProveedoresPage() {
           </div>
 
           {/* Detalle proveedor */}
-          <div style={{ overflowY:'auto', padding:'20px 24px' }}>
+          <div style={{ display: isMobile && !showDetail ? 'none' : 'block', overflowY:'auto', padding:'20px 24px' }}>
+            {isMobile && (
+              <button onClick={() => setShowDetail(false)}
+                style={{ display:'flex', alignItems:'center', gap:6, background:'none', border:'none', color:'var(--accent)', cursor:'pointer', fontSize:13, fontWeight:500, marginBottom:16, padding:0 }}>
+                ← Proveedores
+              </button>
+            )}
             <div style={{ display:'flex', alignItems:'center', gap:16, marginBottom:20 }}>
               <div style={{ width:56, height:56, borderRadius:'50%', background:CAT_INFO[selected.categoria].bg, border:`2px solid ${CAT_INFO[selected.categoria].color}44`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, fontWeight:700, color:CAT_INFO[selected.categoria].color, fontFamily:'system-ui' }}>
                 {selected.nombre[0]}

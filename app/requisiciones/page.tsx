@@ -74,6 +74,16 @@ export default function RequisicionesPage() {
   const [insumos, setInsumos] = useState<ItemReq[]>([])
   const [panes, setPanes] = useState<ItemReq[]>([])
   const [cargando, setCargando] = useState(true)
+  const [isMobile, setIsMobile] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)')
+    setIsMobile(mq.matches)
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
   const [tab, setTab] = useState<'panes'|'insumos'>('panes')
   const [enviado, setEnviado] = useState<'panes'|'insumos'|null>(null)
 
@@ -174,10 +184,16 @@ export default function RequisicionesPage() {
           ))}
         </div>
 
-        <div style={{ flex:1, overflowY:'auto', padding:'16px 24px', display:'grid', gridTemplateColumns:'1fr 320px', gap:16, alignContent:'start' }}>
+        <div style={{ flex:1, overflowY:'auto', padding:'16px 24px', display:'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 320px', gap:16, alignContent:'start' }}>
 
           {/* Lista items */}
-          <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, overflow:'hidden', overflowY:'auto', maxHeight:'calc(100vh - 280px)' }}>
+          <div style={{ display: isMobile && showPreview ? 'none' : 'block', background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, overflow:'hidden', overflowY:'auto', maxHeight:'calc(100vh - 280px)' }}>
+            {isMobile && (
+              <button onClick={() => setShowPreview(true)}
+                style={{ width:'100%', padding:'10px', background:'var(--accent)', border:'none', borderRadius:0, cursor:'pointer', color:'#0e0f0c', fontSize:13, fontWeight:700 }}>
+                Ver preview y enviar →
+              </button>
+            )}
             <div style={{ padding:'12px 16px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
               <span style={{ fontSize:11, color:'var(--text3)', textTransform:'uppercase', letterSpacing:1 }}>
                 {cargando
@@ -258,7 +274,13 @@ export default function RequisicionesPage() {
           </div>
 
           {/* Preview mensaje */}
-          <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+          <div style={{ display: isMobile && !showPreview ? 'none' : 'flex', flexDirection:'column', gap:12 }}>
+            {isMobile && (
+              <button onClick={() => setShowPreview(false)}
+                style={{ display:'flex', alignItems:'center', gap:6, background:'none', border:'none', color:'var(--accent)', cursor:'pointer', fontSize:13, fontWeight:500, padding:0 }}>
+                ← Volver a la lista
+              </button>
+            )}
             <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, padding:16 }}>
               <div style={{ fontSize:10, color:'var(--text3)', textTransform:'uppercase', letterSpacing:1, marginBottom:12 }}>
                 Vista previa del mensaje

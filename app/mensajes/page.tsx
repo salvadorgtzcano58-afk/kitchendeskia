@@ -45,10 +45,21 @@ export default function MensajesPage() {
   const [input, setInput] = useState('')
   const [filtro, setFiltro] = useState('todos')
   const [iaActiva, setIaActiva] = useState(true)
+  const [isMobile, setIsMobile] = useState(false)
+  const [showDetail, setShowDetail] = useState(false)
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)')
+    setIsMobile(mq.matches)
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
 
   const selectConv = (c: Conversacion) => {
     setSelected(c)
     setMsgs(DEMO_MSGS[c.id] || [])
+    setShowDetail(true)
   }
 
   const sendMsg = () => {
@@ -94,10 +105,10 @@ export default function MensajesPage() {
         </div>
 
         {/* Content grid */}
-        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 360px', overflow: 'hidden' }}>
+        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 360px', overflow: 'hidden' }}>
 
           {/* Lista conversaciones */}
-          <div style={{ display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--border)', overflow: 'hidden' }}>
+          <div style={{ display: isMobile && showDetail ? 'none' : 'flex', flexDirection: 'column', borderRight: '1px solid var(--border)', overflow: 'hidden' }}>
             {/* Tabs */}
             <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', padding: '0 16px', background: 'var(--surface)', gap: 4 }}>
               {[
@@ -147,11 +158,17 @@ export default function MensajesPage() {
           </div>
 
           {/* Panel derecho */}
-          <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ display: isMobile && !showDetail ? 'none' : 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
             {/* Chat activo */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', borderBottom: '1px solid var(--border)' }}>
               <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10, background: 'var(--surface)' }}>
+                {isMobile && (
+                  <button onClick={() => setShowDetail(false)}
+                    style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontSize: 18, padding: '0 4px 0 0', lineHeight: 1 }}>
+                    ←
+                  </button>
+                )}
                 <div style={{ width: 32, height: 32, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, background: `${CANAL_COLOR[selected.canal]}22`, color: CANAL_COLOR[selected.canal] }}>
                   {selected.cliente_nombre.split(' ').map(n=>n[0]).join('').slice(0,2)}
                 </div>
