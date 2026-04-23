@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 
 const supabase = createBrowserClient(
@@ -54,6 +54,21 @@ export default function TianguisPage() {
   const [turnoActivo, setTurnoActivo] = useState(false)
   const [showCobrar, setShowCobrar] = useState(false)
   const [efectivoRecibido, setEfectivoRecibido] = useState('')
+  const [productosMap, setProductosMap] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    supabase
+      .from('productos')
+      .select('id, nombre')
+      .eq('activo', true)
+      .then(({ data }) => {
+        if (data) {
+          const map: Record<string, string> = {}
+          data.forEach(p => { map[p.nombre] = p.id })
+          setProductosMap(map)
+        }
+      })
+  }, [])
 
   const totalCarrito = carrito.reduce((a, i) => a + (i.precio * i.cantidad), 0)
   const totalDia = ventas.reduce((a, v) => a + v.precio * v.cantidad, 0)
@@ -111,6 +126,7 @@ export default function TianguisPage() {
 
     const items = carritoSnapshot.map(item => ({
       pedido_id: pedido.id,
+      producto_id: productosMap[item.sabor] ?? null,
       producto_nombre: item.sabor,
       cantidad: item.cantidad,
       precio_unitario: item.precio,
