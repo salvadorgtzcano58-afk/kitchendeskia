@@ -15,6 +15,13 @@ type Venta = {
   hora: string
 }
 
+type CarritoItem = {
+  sabor: string
+  cantidad: number
+  precio: number
+  sabores?: string[] // solo para paquetes
+}
+
 const PANES = [
   { sabor:'Nutella',             precio:30 },
   { sabor:'Fresas con crema',    precio:30 },
@@ -43,18 +50,22 @@ const PANES = [
 ]
 
 const PAQUETES = [
-  { sabor:'Paneki Amigos (4 pzas)',   precio:120 },
-  { sabor:'Paneki Familiar (6 pzas)', precio:180 },
+  { sabor:'Paneki Amigos (4 piezas)',   precio:120, piezas:4 },
+  { sabor:'Paneki Familiar (6 piezas)', precio:180, piezas:6 },
 ]
 
 export default function TianguisPage() {
   const [ventas, setVentas] = useState<Venta[]>([])
-  const [carrito, setCarrito] = useState<{sabor:string; cantidad:number; precio:number}[]>([])
+  const [carrito, setCarrito] = useState<CarritoItem[]>([])
   const [vista, setVista] = useState<'vender'|'resumen'>('vender')
   const [turnoActivo, setTurnoActivo] = useState(false)
   const [showCobrar, setShowCobrar] = useState(false)
   const [efectivoRecibido, setEfectivoRecibido] = useState('')
   const [productosMap, setProductosMap] = useState<Record<string, string>>({})
+
+  // Sub-selector de sabores para paquetes
+  const [paqueteConfigurando, setPaqueteConfigurando] = useState<{ sabor: string; precio: number; piezas: number } | null>(null)
+  const [tempSabores, setTempSabores] = useState<string[]>([])
 
   useEffect(() => {
     supabase
@@ -76,61 +87,108 @@ export default function TianguisPage() {
 
   const agregarAlCarrito = (sabor: string, precio: number) => {
     setCarrito(prev => {
-      const existe = prev.find(i => i.sabor === sabor)
-      if (existe) return prev.map(i => i.sabor === sabor ? {...i, cantidad: i.cantidad + 1} : i)
+      const existe = prev.find(i => i.sabor === sabor && !i.sabores)
+      if (existe) return prev.map(i => i.sabor === sabor && !i.sabores ? {...i, cantidad: i.cantidad + 1} : i)
       return [...prev, { sabor, cantidad:1, precio }]
     })
   }
 
   const quitarDelCarrito = (sabor: string) => {
     setCarrito(prev => {
-      const existe = prev.find(i => i.sabor === sabor)
-      if (!existe) return prev
-      if (existe.cantidad === 1) return prev.filter(i => i.sabor !== sabor)
-      return prev.map(i => i.sabor === sabor ? {...i, cantidad: i.cantidad - 1} : i)
+      const idx = prev.findLastIndex(i => i.sabor === sabor)
+      if (idx === -1) return prev
+      const item = prev[idx]
+      if (item.sabores || item.cantidad === 1) {
+        return prev.filter((_, i) => i !== idx)
+      }
+      return prev.map((i, index) => index === idx ? {...i, cantidad: i.cantidad - 1} : i)
     })
+  }
+
+  // Abre el sub-selector de sabores para un paquete
+  const abrirSelectorPaquete = (paquete: { sabor: string; precio: number; piezas: number }) => {
+    setPaqueteConfigurando(paquete)
+    setTempSabores([])
+  }
+
+  // Agrega un sabor al paquete que se está configurando
+  const seleccionarSaborPaquete = (sabor: string) => {
+    if (!paqueteConfigurando) return
+    const nuevos = [...tempSabores, sabor]
+    if (nuevos.length >= paqueteConfigurando.piezas) {
+      const saboresFinal = nuevos.slice(0, paqueteConfigurando.piezas)
+      setCarrito(prev => [...prev, {
+        sabor: paqueteConfigurando.sabor,
+        cantidad: 1,
+        precio: paqueteConfigurando.precio,
+        sabores: saboresFinal,
+      }])
+      setPaqueteConfigurando(null)
+      setTempSabores([])
+    } else {
+      setTempSabores(nuevos)
+    }
   }
 
   const cobrar = async () => {
     const hora = new Date().toLocaleTimeString('es-MX', { hour:'2-digit', minute:'2-digit' })
-    // Capturar carrito y total antes de limpiar el estado
     const carritoSnapshot = [...carrito]
     const totalSnapshot = totalCarrito
 
-    const nuevasVentas = carritoSnapshot.map((item, i) => ({
-      id: Date.now() + i,
-      sabor: item.sabor,
-      cantidad: item.cantidad,
-      precio: item.precio,
-      hora,
-    }))
+    // Estado local: expandir paquetes a una venta por sabor individual
+    const nuevasVentas: Venta[] = carritoSnapshot.flatMap((item, i) => {
+      if (item.sabores && item.sabores.length > 0) {
+        const precioPorPieza = item.precio / item.sabores.length
+        return item.sabores.map((sabor, j) => ({
+          id: Date.now() + i * 100 + j,
+          sabor,
+          cantidad: 1,
+          precio: precioPorPieza,
+          hora,
+        }))
+      }
+      return [{ id: Date.now() + i, sabor: item.sabor, cantidad: item.cantidad, precio: item.precio, hora }]
+    })
     setVentas(prev => [...prev, ...nuevasVentas])
     setCarrito([])
     setShowCobrar(false)
     setEfectivoRecibido('')
 
-    // Guardar en Supabase
-    const payload = { canal: 'tianguis' as const, total: totalSnapshot, metodo_pago: 'efectivo' as const }
-    console.log('[tianguis] payload:', JSON.stringify(payload))
+    // Guardar pedido en Supabase
     const { data: pedido, error: pedidoError } = await supabase
       .from('pedidos')
-      .insert(payload)
+      .insert({ canal: 'tianguis' as const, total: totalSnapshot, metodo_pago: 'efectivo' as const })
       .select()
       .single()
 
-    console.log('[tianguis] pedido result:', JSON.stringify(pedido), 'error:', JSON.stringify(pedidoError))
     if (pedidoError || !pedido) {
       console.error('[tianguis] Error al insertar pedido:', pedidoError)
       return
     }
 
-    const items = carritoSnapshot.map(item => ({
-      pedido_id: pedido.id,
-      producto_id: productosMap[item.sabor] ?? null,
-      producto_nombre: item.sabor,
-      cantidad: item.cantidad,
-      precio_unitario: item.precio,
-    }))
+    // Insertar pedido_items:
+    // - Paquetes: un row por cada sabor individual con su producto_id → dispara el trigger de stock
+    // - Panes simples: un row con producto_id y cantidad
+    const items = carritoSnapshot.flatMap(item => {
+      if (item.sabores && item.sabores.length > 0) {
+        const precioPorPieza = item.precio / item.sabores.length
+        return item.sabores.map(sabor => ({
+          pedido_id: pedido.id,
+          producto_id: productosMap[sabor] ?? null,
+          producto_nombre: sabor,
+          cantidad: 1,
+          precio_unitario: precioPorPieza,
+        }))
+      }
+      return [{
+        pedido_id: pedido.id,
+        producto_id: productosMap[item.sabor] ?? null,
+        producto_nombre: item.sabor,
+        cantidad: item.cantidad,
+        precio_unitario: item.precio,
+      }]
+    })
+
     const { error: itemsError } = await supabase.from('pedido_items').insert(items)
     if (itemsError) {
       console.error('[tianguis] Error al insertar pedido_items:', itemsError)
@@ -138,8 +196,10 @@ export default function TianguisPage() {
   }
 
   const cambio = efectivoRecibido ? parseFloat(efectivoRecibido) - totalCarrito : 0
-
-  const cantidadEnCarrito = (sabor: string) => carrito.find(i => i.sabor === sabor)?.cantidad || 0
+  const cantidadEnCarrito = (sabor: string) =>
+    carrito.filter(i => i.sabor === sabor && !i.sabores).reduce((a, i) => a + i.cantidad, 0)
+  const paquetesEnCarrito = (sabor: string) =>
+    carrito.filter(i => i.sabor === sabor && i.sabores).length
 
   if (!turnoActivo) {
     return (
@@ -179,7 +239,7 @@ export default function TianguisPage() {
           { key:'vender',  label:'Vender' },
           { key:'resumen', label:`Resumen (${ventas.length})` },
         ].map(t => (
-          <div key={t.key} onClick={() => setVista(t.key as any)}
+          <div key={t.key} onClick={() => setVista(t.key as 'vender'|'resumen')}
             style={{ flex:1, padding:'10px', textAlign:'center', fontSize:13, cursor:'pointer', fontWeight:500, color: vista === t.key ? '#c8f135' : '#5a5c4e', borderBottom: vista === t.key ? '2px solid #c8f135' : '2px solid transparent' }}>
             {t.label}
           </div>
@@ -194,7 +254,7 @@ export default function TianguisPage() {
           <div style={{ fontSize:10, color:'#5a5c4e', textTransform:'uppercase', letterSpacing:1, marginBottom:8 }}>Paquetes</div>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:16 }}>
             {PAQUETES.map(p => {
-              const cnt = cantidadEnCarrito(p.sabor)
+              const cnt = paquetesEnCarrito(p.sabor)
               return (
                 <div key={p.sabor} style={{ background:'#1d1f1b', border:`1px solid ${cnt > 0 ? '#c8f135' : 'rgba(255,255,255,0.07)'}`, borderRadius:12, padding:'12px', display:'flex', flexDirection:'column', gap:6 }}>
                   <div style={{ fontSize:12, fontWeight:600, color:'#e8ead4', lineHeight:1.3 }}>{p.sabor}</div>
@@ -203,7 +263,7 @@ export default function TianguisPage() {
                     <button onClick={() => quitarDelCarrito(p.sabor)}
                       style={{ width:32, height:32, background:'#252720', border:'1px solid rgba(255,255,255,0.1)', borderRadius:8, cursor:'pointer', color:'#9a9c88', fontSize:18, display:'flex', alignItems:'center', justifyContent:'center' }}>−</button>
                     <span style={{ flex:1, textAlign:'center', fontSize:16, fontWeight:700, color: cnt > 0 ? '#c8f135' : '#5a5c4e' }}>{cnt}</span>
-                    <button onClick={() => agregarAlCarrito(p.sabor, p.precio)}
+                    <button onClick={() => abrirSelectorPaquete(p)}
                       style={{ width:32, height:32, background: cnt > 0 ? '#c8f135' : '#252720', border:'1px solid rgba(255,255,255,0.1)', borderRadius:8, cursor:'pointer', color: cnt > 0 ? '#0e0f0c' : '#9a9c88', fontSize:18, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700 }}>+</button>
                   </div>
                 </div>
@@ -241,7 +301,7 @@ export default function TianguisPage() {
               { val:`$${totalDia.toLocaleString()}`, label:'Total del día', color:'#c8f135' },
               { val:`${totalPiezas}`,                label:'Piezas vendidas', color:'#4dffb0' },
               { val:`${ventas.length}`,              label:'Transacciones', color:'#5cb8ff' },
-              { val: totalPiezas > 0 ? `$${Math.round(totalDia/ventas.length)}` : '$0', label:'Ticket prom.', color:'#ff9a3c' },
+              { val: ventas.length > 0 ? `$${Math.round(totalDia/ventas.length)}` : '$0', label:'Ticket prom.', color:'#ff9a3c' },
             ].map((s,i) => (
               <div key={i} style={{ background:'#161714', border:'1px solid rgba(255,255,255,0.07)', borderRadius:10, padding:'12px 14px' }}>
                 <div style={{ fontSize:22, fontWeight:700, color:s.color }}>{s.val}</div>
@@ -276,7 +336,10 @@ export default function TianguisPage() {
       {carrito.length > 0 && vista === 'vender' && (
         <div style={{ position:'fixed', bottom:0, left:'50%', transform:'translateX(-50%)', width:'100%', maxWidth:480, padding:'12px 16px', background:'#161714', borderTop:'1px solid rgba(200,241,53,0.3)', zIndex:20 }}>
           <div style={{ fontSize:11, color:'#9a9c88', marginBottom:6 }}>
-            {carrito.map(i => `${i.sabor} x${i.cantidad}`).join(' · ')}
+            {carrito.map(i => i.sabores
+              ? `${i.sabor.replace(' (4 piezas)','').replace(' (6 piezas)','')} (${i.sabores.slice(0,2).join(', ')}${i.sabores.length > 2 ? '…' : ''})`
+              : `${i.sabor} x${i.cantidad}`
+            ).join(' · ')}
           </div>
           <button onClick={() => setShowCobrar(true)}
             style={{ width:'100%', padding:'14px', background:'#c8f135', border:'none', borderRadius:12, cursor:'pointer', color:'#0e0f0c', fontSize:15, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
@@ -286,16 +349,88 @@ export default function TianguisPage() {
         </div>
       )}
 
+      {/* Modal sub-selector de sabores para paquete */}
+      {paqueteConfigurando && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:200, display:'flex', alignItems:'flex-end', justifyContent:'center' }}>
+          <div style={{ background:'#161714', borderRadius:'20px 20px 0 0', padding:20, width:'100%', maxWidth:480, maxHeight:'80vh', display:'flex', flexDirection:'column' }}>
+
+            {/* Header del selector */}
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+              <div>
+                <div style={{ fontSize:14, fontWeight:700, color:'#c8f135' }}>
+                  {paqueteConfigurando.sabor.replace(' (4 piezas)', ' · 4 pzas').replace(' (6 piezas)', ' · 6 pzas')}
+                </div>
+                <div style={{ fontSize:12, color:'#9a9c88', marginTop:2 }}>
+                  Elige {paqueteConfigurando.piezas} sabores · {tempSabores.length}/{paqueteConfigurando.piezas}
+                </div>
+              </div>
+              <button onClick={() => { setPaqueteConfigurando(null); setTempSabores([]) }}
+                style={{ background:'#252720', border:'1px solid rgba(255,255,255,0.1)', borderRadius:8, width:32, height:32, cursor:'pointer', color:'#9a9c88', fontSize:16, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                ✕
+              </button>
+            </div>
+
+            {/* Barra de progreso */}
+            <div style={{ height:4, background:'#252720', borderRadius:2, marginBottom:14 }}>
+              <div style={{ height:'100%', background:'#c8f135', borderRadius:2, transition:'width 0.2s', width:`${(tempSabores.length / paqueteConfigurando.piezas) * 100}%` }} />
+            </div>
+
+            {/* Sabores seleccionados */}
+            {tempSabores.length > 0 && (
+              <div style={{ display:'flex', flexWrap:'wrap', gap:4, marginBottom:12 }}>
+                {tempSabores.map((s, i) => (
+                  <span key={i} style={{ padding:'3px 10px', borderRadius:20, background:'rgba(200,241,53,0.15)', border:'1px solid rgba(200,241,53,0.4)', fontSize:11, color:'#c8f135' }}>
+                    {s}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Grid de panes */}
+            <div style={{ overflowY:'auto', flex:1 }}>
+              <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+                {PANES.map(p => {
+                  const cuenta = tempSabores.filter(s => s === p.sabor).length
+                  const lleno = tempSabores.length >= paqueteConfigurando.piezas
+                  return (
+                    <button key={p.sabor}
+                      onClick={() => seleccionarSaborPaquete(p.sabor)}
+                      disabled={lleno}
+                      style={{
+                        padding:'7px 12px', borderRadius:8, fontSize:12, fontWeight:500,
+                        cursor: lleno ? 'not-allowed' : 'pointer',
+                        background: cuenta > 0 ? 'rgba(200,241,53,0.15)' : '#252720',
+                        color: cuenta > 0 ? '#c8f135' : '#e8ead4',
+                        border: cuenta > 0 ? '1px solid rgba(200,241,53,0.4)' : '1px solid rgba(255,255,255,0.08)',
+                        opacity: lleno && cuenta === 0 ? 0.35 : 1,
+                      }}>
+                      {p.sabor}{cuenta > 0 && <span style={{ fontWeight:700 }}> ×{cuenta}</span>}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal cobrar */}
       {showCobrar && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', zIndex:100, display:'flex', alignItems:'flex-end', justifyContent:'center' }}>
           <div style={{ background:'#161714', borderRadius:'20px 20px 0 0', padding:24, width:'100%', maxWidth:480 }}>
             <div style={{ fontSize:16, fontWeight:700, color:'#e8ead4', marginBottom:16 }}>Cobrar en efectivo</div>
             <div style={{ display:'flex', flexDirection:'column', gap:6, marginBottom:16 }}>
-              {carrito.map(i => (
-                <div key={i.sabor} style={{ display:'flex', justifyContent:'space-between', fontSize:13, color:'#9a9c88' }}>
-                  <span>{i.sabor} x{i.cantidad}</span>
-                  <span>${i.precio * i.cantidad}</span>
+              {carrito.map((i, idx) => (
+                <div key={idx} style={{ fontSize:13, color:'#9a9c88' }}>
+                  <div style={{ display:'flex', justifyContent:'space-between' }}>
+                    <span>{i.sabor}{!i.sabores && ` x${i.cantidad}`}</span>
+                    <span>${i.precio * i.cantidad}</span>
+                  </div>
+                  {i.sabores && (
+                    <div style={{ fontSize:11, color:'#5a5c4e', marginTop:2, paddingLeft:8 }}>
+                      {i.sabores.join(', ')}
+                    </div>
+                  )}
                 </div>
               ))}
               <div style={{ display:'flex', justifyContent:'space-between', fontSize:18, fontWeight:700, color:'#c8f135', borderTop:'1px solid rgba(255,255,255,0.07)', paddingTop:10, marginTop:4 }}>
