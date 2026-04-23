@@ -67,6 +67,10 @@ export default function TianguisPage() {
   const [paqueteConfigurando, setPaqueteConfigurando] = useState<{ sabor: string; precio: number; piezas: number } | null>(null)
   const [tempSabores, setTempSabores] = useState<string[]>([])
 
+  // Estado del cobro
+  const [verificando, setVerificando] = useState(false)
+  const [stockErrors, setStockErrors] = useState<string[]>([])
+
   useEffect(() => {
     supabase
       .from('productos')
@@ -131,30 +135,64 @@ export default function TianguisPage() {
   }
 
   const cobrar = async () => {
+    // Capturar hora y snapshot en cuanto el usuario confirma
     const hora = new Date().toLocaleTimeString('es-MX', { hour:'2-digit', minute:'2-digit' })
-    const carritoSnapshot = [...carrito]
+    // Deep copy para que los arrays de sabores sean independientes del estado React
+    const carritoSnapshot: CarritoItem[] = carrito.map(item => ({
+      ...item,
+      sabores: item.sabores ? [...item.sabores] : undefined,
+    }))
     const totalSnapshot = totalCarrito
 
-    // Estado local: expandir paquetes a una venta por sabor individual
-    const nuevasVentas: Venta[] = carritoSnapshot.flatMap((item, i) => {
-      if (item.sabores && item.sabores.length > 0) {
-        const precioPorPieza = item.precio / item.sabores.length
-        return item.sabores.map((sabor, j) => ({
-          id: Date.now() + i * 100 + j,
-          sabor,
-          cantidad: 1,
-          precio: precioPorPieza,
-          hora,
-        }))
-      }
-      return [{ id: Date.now() + i, sabor: item.sabor, cantidad: item.cantidad, precio: item.precio, hora }]
-    })
-    setVentas(prev => [...prev, ...nuevasVentas])
-    setCarrito([])
-    setShowCobrar(false)
-    setEfectivoRecibido('')
+    setVerificando(true)
+    setStockErrors([])
 
-    // Guardar pedido en Supabase
+    // ── Bug 2: Validar stock antes de cualquier insert ───────────────
+    // Construir mapa { nombreProducto → cantidadNecesaria }
+    // Los paquetes aportan 1 unidad por cada sabor en su array (no el nombre del paquete)
+    const requerido: Record<string, number> = {}
+    for (const item of carritoSnapshot) {
+      if (item.sabores && item.sabores.length > 0) {
+        for (const sabor of item.sabores) {
+          requerido[sabor] = (requerido[sabor] || 0) + 1
+        }
+      } else {
+        requerido[item.sabor] = (requerido[item.sabor] || 0) + item.cantidad
+      }
+    }
+
+    const nombresAVerificar = Object.keys(requerido)
+    if (nombresAVerificar.length > 0) {
+      const { data: stockData, error: stockError } = await supabase
+        .from('productos')
+        .select('nombre, stock_actual')
+        .in('nombre', nombresAVerificar)
+
+      if (!stockError && stockData) {
+        const errores: string[] = []
+        for (const prod of stockData) {
+          const necesario = requerido[prod.nombre] ?? 0
+          if (prod.stock_actual < necesario) {
+            if (prod.stock_actual === 0) {
+              errores.push(`No hay suficientes panes de ${prod.nombre}, no hay stock disponible.`)
+            } else {
+              errores.push(`No hay suficientes panes de ${prod.nombre}, solo quedan ${prod.stock_actual} pieza${prod.stock_actual !== 1 ? 's' : ''}.`)
+            }
+          }
+        }
+        if (errores.length > 0) {
+          setStockErrors(errores)
+          setVerificando(false)
+          return
+        }
+      }
+    }
+
+    // ── Bug 1 fix: insertar pedido + items antes de tocar el estado local ──
+    // El real-time del corte se dispara al insertar el pedido; si los items
+    // se insertan inmediatamente después (sin awaits intermedios), la ventana
+    // de race condition se minimiza al máximo posible desde el cliente.
+
     const { data: pedido, error: pedidoError } = await supabase
       .from('pedidos')
       .insert({ canal: 'tianguis' as const, total: totalSnapshot, metodo_pago: 'efectivo' as const })
@@ -163,12 +201,12 @@ export default function TianguisPage() {
 
     if (pedidoError || !pedido) {
       console.error('[tianguis] Error al insertar pedido:', pedidoError)
+      setVerificando(false)
       return
     }
 
-    // Insertar pedido_items:
-    // - Paquetes: un row por cada sabor individual con su producto_id → dispara el trigger de stock
-    // - Panes simples: un row con producto_id y cantidad
+    // Insertar items inmediatamente: un row por sabor en paquetes (con su producto_id
+    // para que el trigger descuente stock), un row normal para panes individuales
     const items = carritoSnapshot.flatMap(item => {
       if (item.sabores && item.sabores.length > 0) {
         const precioPorPieza = item.precio / item.sabores.length
@@ -193,6 +231,28 @@ export default function TianguisPage() {
     if (itemsError) {
       console.error('[tianguis] Error al insertar pedido_items:', itemsError)
     }
+
+    // Solo después de que ambos inserts terminaron, actualizar estado local
+    const nuevasVentas: Venta[] = carritoSnapshot.flatMap((item, i) => {
+      if (item.sabores && item.sabores.length > 0) {
+        const precioPorPieza = item.precio / item.sabores.length
+        return item.sabores.map((sabor, j) => ({
+          id: Date.now() + i * 100 + j,
+          sabor,
+          cantidad: 1,
+          precio: precioPorPieza,
+          hora,
+        }))
+      }
+      return [{ id: Date.now() + i, sabor: item.sabor, cantidad: item.cantidad, precio: item.precio, hora }]
+    })
+
+    setVentas(prev => [...prev, ...nuevasVentas])
+    setCarrito([])
+    setShowCobrar(false)
+    setEfectivoRecibido('')
+    setStockErrors([])
+    setVerificando(false)
   }
 
   const cambio = efectivoRecibido ? parseFloat(efectivoRecibido) - totalCarrito : 0
@@ -341,7 +401,7 @@ export default function TianguisPage() {
               : `${i.sabor} x${i.cantidad}`
             ).join(' · ')}
           </div>
-          <button onClick={() => setShowCobrar(true)}
+          <button onClick={() => { setShowCobrar(true); setStockErrors([]) }}
             style={{ width:'100%', padding:'14px', background:'#c8f135', border:'none', borderRadius:12, cursor:'pointer', color:'#0e0f0c', fontSize:15, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
             <span>💰 Cobrar</span>
             <span>${totalCarrito}</span>
@@ -419,6 +479,17 @@ export default function TianguisPage() {
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', zIndex:100, display:'flex', alignItems:'flex-end', justifyContent:'center' }}>
           <div style={{ background:'#161714', borderRadius:'20px 20px 0 0', padding:24, width:'100%', maxWidth:480 }}>
             <div style={{ fontSize:16, fontWeight:700, color:'#e8ead4', marginBottom:16 }}>Cobrar en efectivo</div>
+
+            {/* Errores de stock */}
+            {stockErrors.length > 0 && (
+              <div style={{ marginBottom:14, padding:'12px 14px', background:'rgba(255,92,77,0.1)', border:'1px solid rgba(255,92,77,0.35)', borderRadius:10 }}>
+                <div style={{ fontSize:12, fontWeight:700, color:'#ff5c4d', marginBottom:6 }}>Stock insuficiente</div>
+                {stockErrors.map((err, i) => (
+                  <div key={i} style={{ fontSize:12, color:'#ff9a8a', lineHeight:1.5 }}>• {err}</div>
+                ))}
+              </div>
+            )}
+
             <div style={{ display:'flex', flexDirection:'column', gap:6, marginBottom:16 }}>
               {carrito.map((i, idx) => (
                 <div key={idx} style={{ fontSize:13, color:'#9a9c88' }}>
@@ -450,13 +521,17 @@ export default function TianguisPage() {
               )}
             </div>
             <div style={{ display:'flex', gap:10 }}>
-              <button onClick={() => { setShowCobrar(false); setEfectivoRecibido('') }}
-                style={{ flex:1, padding:'14px', background:'#252720', border:'1px solid rgba(255,255,255,0.1)', borderRadius:12, cursor:'pointer', color:'#9a9c88', fontSize:14 }}>
+              <button
+                onClick={() => { setShowCobrar(false); setEfectivoRecibido(''); setStockErrors([]) }}
+                disabled={verificando}
+                style={{ flex:1, padding:'14px', background:'#252720', border:'1px solid rgba(255,255,255,0.1)', borderRadius:12, cursor: verificando ? 'not-allowed' : 'pointer', color:'#9a9c88', fontSize:14, opacity: verificando ? 0.5 : 1 }}>
                 Cancelar
               </button>
-              <button onClick={cobrar}
-                style={{ flex:2, padding:'14px', background:'#c8f135', border:'none', borderRadius:12, cursor:'pointer', color:'#0e0f0c', fontSize:14, fontWeight:700 }}>
-                ✓ Confirmar cobro
+              <button
+                onClick={cobrar}
+                disabled={verificando}
+                style={{ flex:2, padding:'14px', background: verificando ? '#3a3d2e' : '#c8f135', border:'none', borderRadius:12, cursor: verificando ? 'not-allowed' : 'pointer', color: verificando ? '#9a9c88' : '#0e0f0c', fontSize:14, fontWeight:700 }}>
+                {verificando ? 'Verificando...' : '✓ Confirmar cobro'}
               </button>
             </div>
           </div>
