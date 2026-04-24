@@ -104,7 +104,7 @@ export function CentroNotificaciones({ onClose, notifs, setNotifs, cargando }: C
       onClick={onClose}
     >
       <div
-        style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, width:380, maxHeight:'80vh', display:'flex', flexDirection:'column', overflow:'hidden' }}
+        style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, width:'min(380px, calc(100vw - 32px))', maxHeight:'80vh', display:'flex', flexDirection:'column', overflow:'hidden' }}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -126,7 +126,7 @@ export function CentroNotificaciones({ onClose, notifs, setNotifs, cargando }: C
         </div>
 
         {/* Filtros */}
-        <div style={{ display:'flex', gap:4, padding:'8px 12px', borderBottom:'1px solid var(--border)', overflowX:'auto', flexWrap:'nowrap' }}>
+        <div className="scroll-x" style={{ display:'flex', gap:6, padding:'8px 12px', borderBottom:'1px solid var(--border)', flexWrap:'nowrap', alignItems:'center' }}>
           {[
             { key:'todas',         label:'Todas'           },
             { key:'stock_critico', label:'⚠️ Stock'        },
@@ -134,7 +134,7 @@ export function CentroNotificaciones({ onClose, notifs, setNotifs, cargando }: C
             { key:'requisicion',   label:'🛒 Requisiciones' },
           ].map(f => (
             <button key={f.key} onClick={() => setFiltro(f.key as any)}
-              style={{ padding:'4px 10px', borderRadius:20, fontSize:10, cursor:'pointer', whiteSpace:'nowrap', fontWeight:500,
+              style={{ padding:'5px 12px', borderRadius:20, fontSize:11, cursor:'pointer', whiteSpace:'nowrap', fontWeight:500, flexShrink:0,
                 background: filtro === f.key ? 'var(--accent-dim)' : 'var(--surface2)',
                 color:      filtro === f.key ? 'var(--accent)'     : 'var(--text3)',
                 border:     filtro === f.key ? '1px solid rgba(200,241,53,0.3)' : '1px solid var(--border)' }}>

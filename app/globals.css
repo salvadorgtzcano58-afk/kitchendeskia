@@ -30,9 +30,17 @@ body {
   overflow: hidden;
 }
 
-::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 2px; }
+
+/* Scroll horizontal sin scrollbar visible — usado en tabs de filtro */
+.scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.scroll-x::-webkit-scrollbar { display: none; }
 
 /* Móvil: topbar con espacio para el botón hamburger */
 @media (max-width: 767px) {
