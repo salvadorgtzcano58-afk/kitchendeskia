@@ -33,6 +33,7 @@ export default function InventarioPage() {
   const [productos, setProductos] = useState<Producto[]>([])
   const [cargando, setCargando] = useState(true)
   const [filtro, setFiltro] = useState('todos')
+  const [filtroPanes, setFiltroPanes] = useState('todos')
   const [editando, setEditando] = useState<string | null>(null)
   const [nuevoStock, setNuevoStock] = useState('')
   const [vista, setVista] = useState<'insumos' | 'panes'>('panes')
@@ -61,18 +62,28 @@ export default function InventarioPage() {
 
   const insumos = productos.filter(esInsumo)
 
-  const counts = {
+  const countsInsumos = {
     rojo:     insumos.filter(p => status(p.stock_actual) === 'rojo').length,
     amarillo: insumos.filter(p => status(p.stock_actual) === 'amarillo').length,
     verde:    insumos.filter(p => status(p.stock_actual) === 'verde').length,
   }
 
+  const countsPanes = {
+    rojo:     panes.filter(p => status(p.stock_actual) === 'rojo').length,
+    amarillo: panes.filter(p => status(p.stock_actual) === 'amarillo').length,
+    verde:    panes.filter(p => status(p.stock_actual) === 'verde').length,
+  }
+
   const totalPanes = panes.reduce((a, p) => a + p.stock_actual, 0)
-  const panesCriticos = panes.filter(p => status(p.stock_actual) === 'rojo').length
 
   const insumosFiltrados = insumos.filter(p => {
     if (filtro === 'todos') return true
     return status(p.stock_actual) === filtro
+  })
+
+  const panesFiltrados = panes.filter(p => {
+    if (filtroPanes === 'todos') return true
+    return status(p.stock_actual) === filtroPanes
   })
 
   const actualizarStock = async (id: string, nuevoValor: number) => {
@@ -108,26 +119,56 @@ export default function InventarioPage() {
               Próximo surtido: miércoles · en {diasMiercoles} días
             </div>
           </div>
-          <div style={{ display:'flex', gap:8 }}>
-            {[
-              { key:'rojo',     label:`${counts.rojo} críticos`,     color:'#ff5c4d', bg:'rgba(255,92,77,0.12)' },
-              { key:'amarillo', label:`${counts.amarillo} bajos`,    color:'#ff9a3c', bg:'rgba(255,154,60,0.12)' },
-              { key:'verde',    label:`${counts.verde} OK`,          color:'#4dffb0', bg:'rgba(77,255,176,0.1)' },
-            ].map(s => (
-              <div key={s.key} onClick={() => setFiltro(filtro === s.key ? 'todos' : s.key)}
-                style={{ padding:'5px 12px', borderRadius:20, fontSize:11, background:s.bg, color:s.color, cursor:'pointer', fontWeight:500,
-                  border: filtro === s.key ? `1px solid ${s.color}` : '1px solid transparent' }}>
-                {s.label}
+          <div style={{ display:'flex', gap:12, alignItems:'center' }}>
+
+            {/* Grupo Panes */}
+            <div style={{ display:'flex', flexDirection:'column', gap:5, alignItems:'flex-end' }}>
+              <div style={{ fontSize:9, color:'var(--text3)', textTransform:'uppercase', letterSpacing:1, fontWeight:600 }}>🥐 Panes</div>
+              <div style={{ display:'flex', gap:4 }}>
+                {[
+                  { key:'rojo',     label:`${countsPanes.rojo} críticos`,    color:'#ff5c4d', bg:'rgba(255,92,77,0.12)' },
+                  { key:'amarillo', label:`${countsPanes.amarillo} bajos`,   color:'#ff9a3c', bg:'rgba(255,154,60,0.12)' },
+                  { key:'verde',    label:`${countsPanes.verde} OK`,         color:'#4dffb0', bg:'rgba(77,255,176,0.1)' },
+                ].map(s => (
+                  <div key={s.key}
+                    onClick={() => { setVista('panes'); setFiltroPanes(filtroPanes === s.key ? 'todos' : s.key) }}
+                    style={{ padding:'4px 10px', borderRadius:20, fontSize:11, background:s.bg, color:s.color, cursor:'pointer', fontWeight:500,
+                      border: vista === 'panes' && filtroPanes === s.key ? `1px solid ${s.color}` : '1px solid transparent' }}>
+                    {s.label}
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
+
+            <div style={{ width:1, height:38, background:'var(--border)' }} />
+
+            {/* Grupo Insumos */}
+            <div style={{ display:'flex', flexDirection:'column', gap:5, alignItems:'flex-end' }}>
+              <div style={{ fontSize:9, color:'var(--text3)', textTransform:'uppercase', letterSpacing:1, fontWeight:600 }}>📦 Insumos</div>
+              <div style={{ display:'flex', gap:4 }}>
+                {[
+                  { key:'rojo',     label:`${countsInsumos.rojo} críticos`,    color:'#ff5c4d', bg:'rgba(255,92,77,0.12)' },
+                  { key:'amarillo', label:`${countsInsumos.amarillo} bajos`,   color:'#ff9a3c', bg:'rgba(255,154,60,0.12)' },
+                  { key:'verde',    label:`${countsInsumos.verde} OK`,         color:'#4dffb0', bg:'rgba(77,255,176,0.1)' },
+                ].map(s => (
+                  <div key={s.key}
+                    onClick={() => { setVista('insumos'); setFiltro(filtro === s.key ? 'todos' : s.key) }}
+                    style={{ padding:'4px 10px', borderRadius:20, fontSize:11, background:s.bg, color:s.color, cursor:'pointer', fontWeight:500,
+                      border: vista === 'insumos' && filtro === s.key ? `1px solid ${s.color}` : '1px solid transparent' }}>
+                    {s.label}
+                  </div>
+                ))}
+              </div>
+            </div>
+
           </div>
         </div>
 
         {/* Tabs vista */}
         <div style={{ display:'flex', borderBottom:'1px solid var(--border)', background:'var(--surface)', padding:'0 24px', gap:4 }}>
           {[
-            { key:'panes',   label:`🥐 Panes al vapor · ${Math.round(totalPanes)} pzas · ${panesCriticos} críticos` },
-            { key:'insumos', label:`📦 Insumos · ${counts.rojo} críticos` },
+            { key:'panes',   label:`🥐 Panes al vapor · ${Math.round(totalPanes)} pzas` },
+            { key:'insumos', label:`📦 Insumos y empaques` },
           ].map(t => (
             <div key={t.key} onClick={() => setVista(t.key as 'insumos' | 'panes')}
               style={{ padding:'10px 16px', fontSize:12, cursor:'pointer',
@@ -150,7 +191,7 @@ export default function InventarioPage() {
           {/* PANES */}
           {!cargando && vista === 'panes' && (
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(160px, 1fr))', gap:10 }}>
-              {panes.map(p => {
+              {panesFiltrados.map(p => {
                 const st = S[status(p.stock_actual)]
                 const isEdit = editando === p.id
                 return (
@@ -187,9 +228,9 @@ export default function InventarioPage() {
                   </div>
                 )
               })}
-              {panes.length === 0 && (
+              {panesFiltrados.length === 0 && (
                 <div style={{ gridColumn:'1/-1', textAlign:'center', padding:'32px 0', color:'var(--text3)', fontSize:13 }}>
-                  Sin panes registrados
+                  {filtroPanes === 'todos' ? 'Sin panes registrados' : 'Sin panes en esta categoría'}
                 </div>
               )}
             </div>
